@@ -8,7 +8,6 @@ multiboot:
 	.flags dd 3
 	.checksum dd 0 - 0x1BADB002 - 3
 
-
 start:
 	cli
 
@@ -16,7 +15,7 @@ start:
 	shl eax, 10		;Convert kB to an address
 	mov esp, eax		;Put stack at top of lowmem
 
-	;Multiboot information
+	;Restored later to pass to main()
 	push ebx
 
 	mov edi, [ebx+24]	;mods_addr
@@ -46,13 +45,26 @@ start:
 
 	;Map the kernel to -2GB in 64bit space
 	call kernel_map
+	push ecx
+
+	;Create a map at -2GB (down) for the stack
+	; esi = free page
+	; edi = PML4
+	call make_stack
 
 	;Identity map the bootstrap so we can carry on
 	;executing after the switch to long mode.
-	; rdi = next free page
+	; esi = next free page
+	; edi = PML4
 	call bootstrap_map
+
 	mov eax, edi
 	mov cr3, eax
+
+	;Restore these now, as we're going to switch to paging
+	; and the stack pointer won't be valid
+	pop edi			;Used page count
+	pop esi
 
 	;Enable paging
 	mov eax, cr0
@@ -72,13 +84,14 @@ longmode:
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
-	xchg bx, bx
 	mov rax, 0xFFFFFFFF80000000
-	jmp rax
+	mov rsp, rax		;stack goes down from -2GB
+	jmp rax			;kernel starts from -2GB
 
 bits 32
 clear_page:
-	mov edi, [esp+4]
+	push edi
+	mov edi, [esp+8]
 	push eax
 	push ecx
 	shl ecx, 12
@@ -86,7 +99,47 @@ clear_page:
 	rep stosd
 	pop ecx
 	pop eax
+	pop edi
 retn 4
+
+make_stack:
+	; esi = free page
+	; edi = PML4
+
+	;Clear 3 pages for a PD, PT and a stack page
+	mov ecx, 3
+	push esi
+	call clear_page 
+
+	;Use free page for a PD, mapped at -3GB in the PDPT
+	mov eax, edi
+	add eax, 4096		;PDPT is one page after the PML4
+	add eax, 4072		;PDPT[509] (-3GB)
+	mov ebx, esi
+	or ebx, 3
+	mov [eax], ebx
+
+	; Map PD[511] (2MB less than -2GB) to a new PT
+	; esi = PD
+	; esi + 4096 = free page
+	mov eax, esi
+	add eax, 4088	
+	add esi, 4096
+	mov ebx, esi
+	or ebx, 3
+	mov [eax], ebx
+
+	;Map PT[511] (4kB less than -2GB) to an empty page
+	; esi = PT
+	; esi + 4096 = free page
+	mov eax, esi
+	add eax, 4088
+	add esi, 4096
+	mov ebx, esi
+	or ebx, 3
+	mov [eax], ebx
+
+	ret
 
 kernel_map:
 	;Calculate the size of the kernel image
@@ -106,6 +159,7 @@ kernel_map:
 	add ecx, 3		;PML4 + PDPT + PD
 
 	push ecx		;Save no. of pages
+	push ecx
 
 	;Zero out the page table pages
 	; ebx = end of kernel
@@ -176,6 +230,8 @@ kernel_map:
 	mov edi, ebx
 	shl ecx, 12
 	add esi, ecx
+	pop ecx
+	;ecx = number of pages used
 	;esi = End of page tables
 retn 16
 
