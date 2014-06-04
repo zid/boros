@@ -45,7 +45,6 @@ start:
 
 	;Map the kernel to -2GB in 64bit space
 	call kernel_map
-	push ecx
 
 	;Create a map at -2GB (down) for the stack
 	; esi = free page
@@ -56,15 +55,12 @@ start:
 	;executing after the switch to long mode.
 	; esi = next free page
 	; edi = PML4
+	push edi
 	call bootstrap_map
-
-	mov eax, edi
+	pop eax
 	mov cr3, eax
 
-	;Restore these now, as we're going to switch to paging
-	; and the stack pointer won't be valid
-	pop edi			;Used page count
-	pop esi
+	pop ebx 		;Multiboot table
 
 	;Enable paging
 	mov eax, cr0
@@ -86,6 +82,8 @@ longmode:
 	mov gs, ax
 	mov rax, 0xFFFFFFFF80000000
 	mov rsp, rax		;stack goes down from -2GB
+	mov rdi, rsi		;First param = next free page
+	mov rsi, rbx		;Second param = Multiboot table
 	jmp rax			;kernel starts from -2GB
 
 bits 32
@@ -239,58 +237,66 @@ bootstrap_map:
 	; esi = free page
 	; edi = PML4
 	; 'multiboot' symbol = start of bootstrap
-	push edi
 
 	;Map 'ebx' count pages starting from 'eax' into page tables at 'esi'
 	; and insert into the existing PML4 at 'edi'
 
 	;Asume the bootstrap is below 1GB, so we can ignore the PML4 and PDPT.
 	;PML4[0] = new PDPT
-	mov eax, esi
+	mov eax, esi		;free page
 	or eax, 3		;Present, Writeable
-	mov [edi], eax		;PML4[0]
+	mov [edi], eax		;PML4[0] = new PDPT 
 	mov edi, esi
 	add esi, 4096
 
 	;new PDPT[0] = new PD
-	mov eax, esi
+	mov eax, esi		;new PD
 	or eax, 3		;Present, Writeable
-	mov [edi], eax		;PDPT[0]
+	mov [edi], eax		;PDPT[0] = new PD
 
-	;The PD selects which 2MB chunk within the first 1GB we need.
+	;Calculate pointer into the PD
 	mov ecx, multiboot
-	shr ecx, 21		;Divide by 2MB
-	shl ecx, 3		;Turn into a 0-511 index
-
-	;ecx = which 2MB 
+	shr ecx, 21
+	mov edi, esi		;Page directory
+	add edi, ecx		; + offset
+	add esi, 4096		;new free page
+	
+	;New PD[n] = new PT
+	; edi = PD[n]
+	; esi = free page
 	mov eax, esi
-	add eax, ecx
-	add esi, 4096		;New PT
-	mov edi, esi
-	or edi, 3
-	mov [eax], edi		;New PD[n] = new PT
+	or eax, 3		;Present, WRiteable
+	mov [edi], eax		;PD[n] = new PT
 
-
-	;Write mappings into the PT
-	mov eax, multiboot
-	mov ecx, length
+	;Calculate how many pages the bootstrap covers.
+	mov ecx, multiboot
+	add ecx, length
 	shr ecx, 12
-	inc ecx			;Number of pages the bootstrap occupies
-	mov ebx, eax
-	shr ebx, 12
-	shl ebx, 3
-	add esi, ebx
-.loop:
-	mov edx, eax
-	or edx, 3
-	mov [esi], edx		;Page of bootstrap + writeable + present
+	inc ecx
 
-	add esi, 8
-	add eax, 4096
+	;Write the physical address of the bootstrap pages
+	;into the page table at esi.
+	; ecx = page count
+	; esi = page table
+	mov eax, multiboot 
+	shr eax, 9
+
+	mov edi, esi
+	add edi, eax
+	mov eax, multiboot
+.loop:
+	mov edx, eax		;First physical page
+	or edx, 3		;Present + Writeable
+	mov [edi], edx		;PT[n] = bootstrap phys
+
+	add edi, 8		;next page table entry
+	add eax, 4096		;next physical page
 	dec ecx
 	jnz .loop
 
-	pop edi			;Restore PML4 address
+	xchg bx, bx
+
+	add esi, 4096		;Free page
 ret
 
 align 16

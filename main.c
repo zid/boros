@@ -1,8 +1,5 @@
-static char a[8192];
-
-void kmain(void)
+void kmain(void *free_page, void *e820)
 {
-	a[0] = 44;
 	while(1)
 		;
 }
