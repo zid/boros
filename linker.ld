@@ -22,6 +22,7 @@ SECTIONS
 	.bss ALIGN(0x1000):
 	{
 		* (.bss);
+		. = ALIGN(0x1000);
 	}
 	BSS_LEN = SIZEOF(.bss);
 
