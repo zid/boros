@@ -294,8 +294,6 @@ bootstrap_map:
 	dec ecx
 	jnz .loop
 
-	xchg bx, bx
-
 	add esi, 4096		;Free page
 ret
 
