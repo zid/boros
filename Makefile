@@ -19,7 +19,7 @@ prep:
 	mount /dev/loop2 fs
 
 kernel.bin: $(OBJ) $(ASMOBJ)
-	ld -Tlinker.ld $(OBJ) $(ASMOBJ) -o kernel.bin -z max-page-size=4096 
+	ld -Tlinker.ld $(OBJ) $(ASMOBJ) -o kernel.bin -z max-page-size=4096 -Map kernel.map
 
 %.o : %.asm
 	yasm -felf64 $^ -o $@
