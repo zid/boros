@@ -23,7 +23,10 @@ start:
 
 	push dword [eax+16]	;bss start
 	push dword [eax+20]	;bss length
-	push dword [edi+4]	;module end address
+	mov esi, [edi+4]	;module end address
+	add esi, 4095
+	and esi, 0xFFFFF000	;round up to 4096
+	push esi
 	push eax		;module start address
 
 	;Clear the text console
