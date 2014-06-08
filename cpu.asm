@@ -4,7 +4,7 @@ get_cr3:
 	mov rax, cr3
 	ret
 
-cpu_load_cr3:
+set_cr3:
 	mov rax, rdi
 	mov cr3, rax
 	ret
