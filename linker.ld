@@ -2,7 +2,7 @@ OUTPUT_FORMAT("binary")
 
 ENTRY(kmain)
 
-VIRT = 0xFFFF800000102000;
+VIRT = 0xFFFFFFFF80000000;
 
 SECTIONS
 {
@@ -14,13 +14,12 @@ SECTIONS
 		. = ALIGN(4096);
 	}
 
-	.rodata : { * (.data); }
-	.data : { * (.data); }
-
-	BSS_START = . - VIRT;
+	.rodata : ALIGN(8) { * (.rodata*); }
+	.data : ALIGN(8) { * (.data); }
 
 	.bss ALIGN(0x1000):
 	{
+		BSS_START = . - VIRT;
 		* (.bss);
 		. = ALIGN(0x1000);
 	}
