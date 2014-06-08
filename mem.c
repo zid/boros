@@ -1,5 +1,6 @@
 #include "mem.h"
 #include "cpu.h"
+#include "print.h"
 
 static void *free_ptr;
 
@@ -41,7 +42,7 @@ unsigned long get_entry(unsigned long table, unsigned long index)
 
 void set_entry(unsigned long table, unsigned long index, unsigned long entry)
 {
-	*((unsigned long *)table + (index<<3)) = entry | 3;
+	*((unsigned long *)(table + (index<<3))) = entry | 3;
 }
 
 /* The bootstrap is mapped to 1MB so there will be a PDPT and PD already */
@@ -61,7 +62,10 @@ void map_text_console()
 	pt_index = pt_get_index(text_console_addr);
 	phys_addr = get_entry(pt, pt_index) & ~0xFFF;
 	if(!phys_addr)
+	{
 		set_entry(pt, pt_index, 0xB8000 /* identity map */);
+		set_cr3(pml4);
+	}
 }
 
 void init_mem(void *free_page, void *e820)
@@ -69,4 +73,6 @@ void init_mem(void *free_page, void *e820)
 	free_ptr = free_page;
 
 	map_text_console();
+	clear_screen(0);
+	print("Mapped text console...\n");
 }
