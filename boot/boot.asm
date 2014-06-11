@@ -21,18 +21,26 @@ start:
 	mov edi, [ebx+24]	;mods_addr
 	mov eax, [edi]		;first module start
 
-	push dword [eax+16]	;bss start
-	push dword [eax+20]	;bss length
+	mov edx, [eax+16]	;bss start
+	mov ecx, [eax+20]	;bss size
+	push edx
+	push ecx
 	mov esi, [edi+4]	;module end address
 	add esi, 4095
 	and esi, 0xFFFFF000	;round up to 4096
-	push esi
+	push esi		;module end address
 	push eax		;module start address
+
+	;Clear the bss
+	mov edi, edx
+	shr ecx, 2
+	xor eax, eax
+	rep stosd
 
 	;Clear the text console
 	mov edi, 0xB8000
 	xor eax, eax
-	mov ecx, 80*25*2
+	mov ecx, 80*25/2
 	rep stosd
 
 	;Enable PAE
