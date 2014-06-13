@@ -31,10 +31,10 @@ start:
 	add eax, [bss_start]
 	add eax, [bss_length]
 	mov [kernel_end], eax
-
-	mov [pml4], eax
-	add eax, 4096
 	mov [free_page], eax
+
+	call newpage
+	mov [pml4], edi
 
 	call clear_bss
 	call kernel_map
@@ -218,7 +218,7 @@ newpage:
 	add dword [free_page], 4096
 
 	mov edi, esi
-	mov ecx, 1000
+	mov ecx, 1024
 	xor eax, eax
 	rep stosd
 	mov edi, esi
