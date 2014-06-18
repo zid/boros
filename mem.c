@@ -33,31 +33,21 @@ static void map(unsigned long vaddr, unsigned long paddr)
 	/* Do we need to make a new PDPT? */
 	p = page_table(RECURSE, RECURSE, RECURSE) + pml4e;
 	if(!*p)
-	{
 		*p = phys_alloc() | 3;
-		set_cr3(get_cr3());
-	}
 
 	/* Do we need to make a new PD? */
 	p = page_table(RECURSE, RECURSE, pml4e) + pdpte;
 	if(!*p)
-	{
 		*p = phys_alloc() | 3;
-		set_cr3(get_cr3());
-	}
 
 	/* Do we need to make a new PT? */
 	p = page_table(RECURSE, pml4e, pdpte) + pde;
 	if(!*p)
-	{
 		*p = phys_alloc() | 3;
-		set_cr3(get_cr3());
-	}
 
 	/* Map the page into the page table */
 	p = page_table(pml4e, pdpte, pde) + pte;
 	*p = paddr | 3;
-	set_cr3(get_cr3());
 }
 
 void init_mem(unsigned long freeptr, void *b)
