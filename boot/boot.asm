@@ -30,17 +30,21 @@ start:
 	mov eax, [kernel_start]
 	add eax, [bss_start]
 	add eax, [bss_length]
+	add eax, 4095
+	and eax, 0xFFFFF000
 	mov [kernel_end], eax
 	mov [free_page], eax
 
 	call newpage
 	mov [pml4], edi
+	mov esi, edi
+	or esi, 3
+	mov [edi+(510*8)], esi
 
 	call clear_bss
 	call kernel_map
 	call bootstrap_map
 	call stack_map
-	call page_table_map
 
 	;Enable PAE
 	mov eax, cr4
@@ -78,7 +82,6 @@ bits 64
 	longmode:
 	mov rax, 0xFFFFFFFF80000000
 	mov rsp, rax
-	xchg bx, bx
 	jmp rax
 
 	hlt
@@ -93,20 +96,6 @@ clear_bss:
 	xor eax, eax
 	rep stosd
 	ret
-
-;Identity map the page tables we made
-page_table_map:
-	mov eax, [pml4]
-	mov edi, eax
-	mov esi, [free_page]
-	xor edx, edx
-.loop1:
-	call map_page
-	add edi, 0x1000
-	add eax, 0x1000
-	cmp edi, esi
-	jnz .loop1
-ret
 
 ;Map a page for the kernel stack
 stack_map:
