@@ -2,11 +2,15 @@
 #include "cpu.h"
 #include "print.h"
 
+#define RECURSE 510UL
+#define RECURSE_PML4 (0xFFFF000000000000UL | (RECURSE<<39))
+
 unsigned long free_page;
 
-struct page_table {
-	unsigned long addr;
-};
+static unsigned long *page_table(unsigned long p3, unsigned long p2, unsigned long p1)
+{
+	return RECURSE_PML4 | (p3<<30) | (p2<<21) | (p1<<12);
+}
 
 static unsigned long phys_alloc()
 {
@@ -23,37 +27,37 @@ static void map(unsigned long vaddr, unsigned long paddr)
 
 	pml4e = (vaddr>>39)&0x1FF;
 	pdpte = (vaddr>>30)&0x1FF;
-	pde = (vaddr>>21)&0x1FF;
-	pte = (vaddr>>12)&0x1FF;
-	asm("xchg %bx, %bx");
-	p = (unsigned long *)0xFFFFFF7FBFDFE000ULL + pml4e;
+	pde   = (vaddr>>21)&0x1FF;
+	pte   = (vaddr>>12)&0x1FF;
+
+	/* Do we need to make a new PDPT? */
+	p = page_table(RECURSE, RECURSE, RECURSE) + pml4e;
 	if(!*p)
 	{
 		*p = phys_alloc() | 3;
 		set_cr3(get_cr3());
 	}
 
-	p = (unsigned long *)(0xFFFFFF7FBFC00000ULL + (pml4e * 0x1000)) + pdpte;
+	/* Do we need to make a new PD? */
+	p = page_table(RECURSE, RECURSE, pml4e) + pdpte;
 	if(!*p)
 	{
 		*p = phys_alloc() | 3;
 		set_cr3(get_cr3());
 	}
 
-	p = (unsigned long *)(0xFFFFFF7F80000000 + (pml4e * 0x200000) + (pdpte*0x1000)) + pde;
+	/* Do we need to make a new PT? */
+	p = page_table(RECURSE, pml4e, pdpte) + pde;
 	if(!*p)
 	{
 		*p = phys_alloc() | 3;
 		set_cr3(get_cr3());
 	}
 
-	p = (unsigned long *)(0xFFFFFF0000000000 + (pml4e * 0x40000000) + (pdpte*0x200000) + (pde*0x1000)) + pte;
-	if(!*p)
-	{
-		*p = paddr | 3;
-		set_cr3(get_cr3());
-	}
-
+	/* Map the page into the page table */
+	p = page_table(pml4e, pdpte, pde) + pte;
+	*p = paddr | 3;
+	set_cr3(get_cr3());
 }
 
 void init_mem(unsigned long freeptr, void *b)
