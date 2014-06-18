@@ -1,3 +1,4 @@
+#include "mem.h"
 #include "cpu.h"
 #include "print.h"
 
@@ -55,7 +56,7 @@ static void map(unsigned long vaddr, unsigned long paddr)
 
 }
 
-void init_mem(void *freeptr, void *b)
+void init_mem(unsigned long freeptr, void *b)
 {
 	free_page = freeptr;
 
