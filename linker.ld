@@ -1,4 +1,4 @@
-OUTPUT_FORMAT("binary")
+OUTPUT_FORMAT("elf64-x86-64")
 
 ENTRY(kmain)
 
@@ -7,25 +7,10 @@ VIRT = 0xFFFFFFFF80000000;
 SECTIONS
 {
 	. = VIRT;
-	.text :
-	{
-		header.o (.text);
-		* (.text);
-		. = ALIGN(4096);
-	}
+	.text   : ALIGN(0x1000) { * (.text*);    }
+	.rodata : ALIGN(0x1000) { * (.rodata*); }
+	.data   : ALIGN(0x1000) { * (.data);    }
+	.bss    : ALIGN(0x1000) { * (.bss);     }
 
-	.rodata : ALIGN(8) { * (.rodata*); }
-	.data : ALIGN(8) { * (.data); }
-
-	.bss ALIGN(0x1000):
-	{
-		BSS_START = . - VIRT;
-		* (.bss);
-		. = ALIGN(0x1000);
-	}
-	BSS_LEN = SIZEOF(.bss);
-
-	/DISCARD/ : {
-		* (.*);
-	}
+	/DISCARD/ : { * (.*); }
 }
