@@ -2,7 +2,7 @@
 #include "print.h"
 #include "stdlib.h"
 
-static unsigned short *vmem = (unsigned short *)0xB8000;
+unsigned short *vmem = (unsigned short *)0xB8000;
 
 void clear_screen(colour c)
 {
@@ -127,7 +127,7 @@ again:		c = *p++;
 	}
 }
 
-void print(const char *fmt, ...)
+void printf(const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);

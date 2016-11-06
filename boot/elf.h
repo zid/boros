@@ -10,7 +10,7 @@ struct program_header {
 	u32 p_flags;
 	u64 p_offset;
 	u64 p_vaddr;
-	u64 p_addr;
+	u64 p_paddr;
 	u64 p_filesz;
 	u64 p_memsz;
 	u64 p_align;

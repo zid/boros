@@ -5,7 +5,7 @@
 
 extern u32 _bootloader_size;
 
-void __attribute__((noreturn)) go_long(u32, u64);
+void __attribute__((noreturn)) go_long(u32, u64, u32);
 
 struct page_table_entry
 {
@@ -114,20 +114,32 @@ void map_page(struct memory *m, u64 vaddr, u32 paddr, u32 flags)
 }
 
 
-void map_section(struct memory *m, struct section_header *s)
+void map_section(struct memory *m, struct program_header *p)
 {
 	u64 paddr, vaddr;
 
-	paddr = s->sh_offset + m->elf_start;
+	paddr = p->p_offset + m->elf_start;
 
 	/* Map each page in the section */
-	for(vaddr = s->sh_addr; vaddr < s->sh_addr + s->sh_size; vaddr += 4096)
+	for(vaddr = p->p_vaddr; vaddr < p->p_vaddr + p->p_memsz; vaddr += 4096)
 	{
-		map_page(m, vaddr, paddr, s->sh_flags);
+		if(p->p_filesz)
+		{
+			/* This page is backed by the file, subtract 4096 or
+			 * filesz bytes, whichever is smaller. */
+			p->p_filesz -= p->p_filesz >= 4096 ? 4096 : p->p_filesz;
+		}
+		else
+		{
+			/* We ran out of file bytes, this must be bss,
+			 * allocate memory and zero it instead. */
+			paddr = new_page(&m->free_page);
+		}
+		print("Mapping %lx to %lx\n", vaddr, paddr);
+		map_page(m, vaddr, paddr, p->p_flags);
 		paddr += 4096;
 
 	}
-
 }
 
 void map_bootloader(struct memory *m, u32 size)
@@ -146,7 +158,7 @@ void __attribute__((noreturn)) main(struct multiboot *mb)
 	u32 kernel_start;
 	u32 kernel_size;
 	struct elf_header *e;
-	struct section_header *s;
+	struct program_header *p;
 	struct memory m = {0};
 	struct module *mod = mb->mods_addr;
 
@@ -154,17 +166,18 @@ void __attribute__((noreturn)) main(struct multiboot *mb)
 	kernel_size = mod->mod_end - mod->mod_start;
 	kernel_size = ((kernel_size+4095)/4096)*4096;
 
+	print("Kernel start: %x\n", kernel_start);
 	m.free_page = kernel_start + kernel_size;
 	m.elf_start = kernel_start;
 	m.pml4 = 0;
 
 	e = (struct elf_header *)kernel_start;
-	s = (struct section_header *)(u32)(e->e_shoff + kernel_start);
+	p = (struct program_header *)(u32)(e->e_phoff + kernel_start);
 
 	for(i = 0; i < e->e_shnum; i++)
-		map_section(&m, s++);
+		map_section(&m, p++);
 
 	map_bootloader(&m, (u32)&_bootloader_size);
 
-	go_long((u32)m.pml4, e->e_entry);
+	go_long((u32)m.pml4, e->e_entry, m.free_page);
 }

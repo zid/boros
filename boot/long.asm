@@ -1,10 +1,12 @@
 bits 32
 global go_long
+extern _stack_start
 
 section .text
 go_long:
 	mov esi, [esp+8]
 	mov edi, [esp+12]
+	mov ebx, [esp+16]
 
 	mov eax, cr4
 	or eax, 1 << 5
@@ -16,6 +18,8 @@ go_long:
 	wrmsr
 
 	mov eax, [esp+4]
+	lea ecx, [eax+3]
+	mov [eax+4080], ecx
 	mov cr3, eax
 
 	mov eax, cr0
@@ -31,15 +35,14 @@ go_long:
 
 	jmp 8:longmode
 
-
 bits 64
 	longmode:
-	xchg bx, bx
 	mov rax, rdi
 	shl rax, 32
 	or rax, rsi
-
-	mov rsp, 0xDEADBEEFDEADBEEF
+	mov esp, _stack_start
+	add rsp, 0xffffffff80001000
+	mov edi, ebx
 	jmp rax
 
 

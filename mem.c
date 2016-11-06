@@ -9,7 +9,7 @@ unsigned long free_page;
 
 static unsigned long *page_table(unsigned long p3, unsigned long p2, unsigned long p1)
 {
-	return RECURSE_PML4 | (p3<<30) | (p2<<21) | (p1<<12);
+	return (unsigned long *)(RECURSE_PML4 | (p3<<30) | (p2<<21) | (p1<<12));
 }
 
 static unsigned long phys_alloc()
@@ -20,7 +20,7 @@ static unsigned long phys_alloc()
 	return p;
 }
 
-static void map(unsigned long vaddr, unsigned long paddr)
+void map(unsigned long vaddr, unsigned long paddr)
 {
 	unsigned long *p;
 	unsigned long pml4e, pdpte, pde, pte;
@@ -50,10 +50,9 @@ static void map(unsigned long vaddr, unsigned long paddr)
 	*p = paddr | 3;
 }
 
-void init_mem(unsigned long freeptr, void *b)
+void init_mem(unsigned long freeptr)
 {
 	free_page = freeptr;
 
 	map(0xB8000, 0xB8000);
-	print("%lx\n", free_page);
 }
