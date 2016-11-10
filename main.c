@@ -4,7 +4,7 @@
 
 void kmain(u64 free_page)
 {
-	init_mem(free_page);
+	mem_init(free_page);
 
 	clear_screen(0);
 	printf("Hello from long mode\n");

@@ -12,12 +12,15 @@ static unsigned long *page_table(unsigned long p3, unsigned long p2, unsigned lo
 	return (unsigned long *)(RECURSE_PML4 | (p3<<30) | (p2<<21) | (p1<<12));
 }
 
+static void phys_update(unsigned long addr)
+{
+	free_page = *(unsigned long *)addr;
+	*(unsigned long *)addr = 0;
+}
+
 static unsigned long phys_alloc()
 {
-	unsigned long p;
-	p = free_page;
-	free_page += 0x1000;
-	return p;
+	return free_page;
 }
 
 void map(unsigned long vaddr, unsigned long paddr)
@@ -50,7 +53,14 @@ void map(unsigned long vaddr, unsigned long paddr)
 	*p = paddr | 3;
 }
 
-void init_mem(unsigned long freeptr)
+void *palloc(unsigned long vaddr)
+{
+	map(vaddr, phys_alloc());
+	phys_update(vaddr);
+	return (void *)vaddr;
+}
+
+void mem_init(unsigned long freeptr)
 {
 	free_page = freeptr;
 

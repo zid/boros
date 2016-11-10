@@ -1,4 +1,5 @@
 #ifndef MEM_H
 #define MEM_H
-void init_mem(unsigned long);
+void mem_init(unsigned long);
+void *palloc(unsigned long);
 #endif

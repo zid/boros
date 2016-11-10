@@ -28,7 +28,7 @@ struct multiboot
 	u32 mods_count;
 	struct module *mods_addr;
 	struct syms syms;
-	u32 mmap_length;
+	u32 mmap_len;
 	struct mem *mmap_addr;
 };
 

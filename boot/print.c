@@ -137,7 +137,7 @@ again:		c = *p++;
 	}
 }
 
-void print(const char *fmt, ...)
+void printf(const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
