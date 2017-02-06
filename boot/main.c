@@ -154,9 +154,12 @@ void map_bootloader(u32 size)
 static void page_add(unsigned long page)
 {
 	unsigned long p;
+	unsigned long *pp;
 
 	p = mem.free_page;
-	*((unsigned long *)page) = p;
+	pp = (unsigned long *)p;
+	pp[0] = p;
+	pp[1] = 0;
 	mem.free_page = page;
 }
 
