@@ -218,7 +218,7 @@ void __attribute__((noreturn)) main(struct multiboot *mb)
 	p = (struct program_header *)(u32)(e->e_phoff + kernel_start);
 
 	for(i = 0; i < e->e_phnum; i++)
-		map_section(p++);
+		map_section(&p[i]);
 
 	map_bootloader((u32)&_bootloader_size);
 
