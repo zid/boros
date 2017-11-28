@@ -153,12 +153,10 @@ void map_bootloader(u32 size)
 
 static void page_add(unsigned long page)
 {
-	unsigned long p;
 	unsigned long *pp;
 
-	p = mem.free_page;
-	pp = (unsigned long *)p;
-	pp[0] = p;
+	pp = (unsigned long *)page;
+	pp[0] = mem.free_page;
 	pp[1] = 0;
 	mem.free_page = page;
 }
@@ -173,6 +171,8 @@ static int is_kernel_page(unsigned long kernel_size, unsigned long page)
 static void init_mem(struct multiboot *mb, unsigned long kernel_end)
 {
 	struct mem *m;
+
+	asm("xchg %bx, %bx");
 
 	for(m = mb->mmap_addr; (char *)m < (char *)mb->mmap_addr + mb->mmap_len; m++)
 	{
