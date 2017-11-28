@@ -37,13 +37,14 @@ output/boot-cd-grub.iso : kernel.bin boot.bin output
 	mkdir -p output/cdroot/boot/grub
 	cp -f 3rdparty/grub/stage2_eltorito output/cdroot/boot/grub/
 	cp -f boot/boot.bin output/cdroot/boros.bin
+	cp -f kernel.bin output/cdroot/kernel.bin
 
-	echo "default 0"               >  $(BOOT_CD_GRUB_MENU_FILE)
-	echo "timeout 1"               >> $(BOOT_CD_GRUB_MENU_FILE)
-	echo "title boros"             >> $(BOOT_CD_GRUB_MENU_FILE)
-	echo "  root (cd)"             >> $(BOOT_CD_GRUB_MENU_FILE)
-	echo "  kernel (cd)/boros.bin" >> $(BOOT_CD_GRUB_MENU_FILE)
-
+	echo "default 0"                >  $(BOOT_CD_GRUB_MENU_FILE)
+	echo "timeout 1"                >> $(BOOT_CD_GRUB_MENU_FILE)
+	echo "title boros"              >> $(BOOT_CD_GRUB_MENU_FILE)
+	echo "  root (cd)"              >> $(BOOT_CD_GRUB_MENU_FILE)
+	echo "  kernel (cd)/boros.bin"  >> $(BOOT_CD_GRUB_MENU_FILE)
+	echo "	module (cd)/kernel.bin" >> $(BOOT_CD_GRUB_MENU_FILE)
 	mkisofs \
 		-o $@ \
 		-b boot/grub/stage2_eltorito \
@@ -65,6 +66,7 @@ output/boot-cd-isolinux.iso : kernel.bin boot.bin output
 	cp -f 3rdparty/syslinux/bios/mboot.c32    output/cdroot/isolinux/
 	cp -f 3rdparty/syslinux/bios/menu.c32     output/cdroot/isolinux/
 	cp -f boot/boot.bin output/cdroot/boros.bin
+	cp -f kernel.bin output/cdroot/kernel.bin
 
 	echo "ui menu.c32"                  >  $(BOOT_CD_ISOLINUX_MENU_FILE)
 	echo "prompt 0"                     >> $(BOOT_CD_ISOLINUX_MENU_FILE)
