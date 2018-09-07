@@ -17,6 +17,19 @@ ASMOBJ = $(ASMSRC:.asm=.o)
 BOOT_CD_GRUB_MENU_FILE = output/cdroot/boot/grub/menu.lst
 BOOT_CD_ISOLINUX_MENU_FILE = output/cdroot/isolinux/isolinux.cfg
 
+all: kernel.bin boot.bin
+
+prep:
+	mkdir -p fs
+	losetup /dev/loop1 fs.bin
+	losetup /dev/loop2 -o 32256 /dev/loop1
+	mount /dev/loop2 fs
+
+install: kernel.bin boot.bin
+	cp boot/boot.bin fs/boot/
+	cp kernel.bin fs/boot/
+	sync
+
 boot.bin:
 	$(MAKE) -C boot/
 
@@ -114,8 +127,8 @@ output/hd-efi.img : kernel.bin boot.bin output
 
 	dd if=output/fat.img of=$@ bs=1M seek=1 conv=notrunc
 
-run: output/boot-cd-grub.iso
-	bochs -qf boros.bochs
+run: boot.bin kernel.bin install
+	bochs
 
 run-qemu-cd-grub : output/boot-cd-grub.iso
 	qemu-system-x86_64 -enable-kvm -m 256 -boot d \
