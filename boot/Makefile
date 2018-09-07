@@ -2,7 +2,7 @@ SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 ASMSRC = $(wildcard *.asm)
 ASMOBJ = $(ASMSRC:.asm=.o)
-CFLAGS = -fno-builtin -ffreestanding -O2 -no-pie -fno-pic
+CFLAGS = -fno-builtin -ffreestanding -O2 -no-pie -fno-pic -mno-sse
 
 %.o : %.c
 	$(CC) $^ -c -o $@ $(CFLAGS) -m32
