@@ -172,8 +172,6 @@ static void init_mem(struct multiboot *mb, unsigned long kernel_end)
 {
 	struct mem *m;
 
-	asm("xchg %bx, %bx");
-
 	for(m = mb->mmap_addr; (char *)m < (char *)mb->mmap_addr + mb->mmap_len; m++)
 	{
 		unsigned long page, start, end;
@@ -207,12 +205,18 @@ void __attribute__((noreturn)) main(struct multiboot *mb)
 	struct program_header *p;
 	struct module *mod = mb->mods_addr;
 
+	printf("Bootloader started\n");
+
 	kernel_start = mod->mod_start;
 	kernel_size  = mod->mod_end - mod->mod_start;
 	kernel_size  = ((kernel_size+4095)/4096)*4096;
 	kernel_end   = kernel_start + kernel_size;
 
+	printf("Kernel: %lx-%lx\n", kernel_start, kernel_end);
+
 	init_mem(mb, kernel_end);
+
+	printf("Memory initialized\n");
 
 	mem.elf_start = kernel_start;
 	mem.pml4 = 0;
@@ -223,7 +227,12 @@ void __attribute__((noreturn)) main(struct multiboot *mb)
 	for(i = 0; i < e->e_phnum; i++)
 		map_section(&p[i]);
 
+	printf("Kernel mapped\n");
+
 	map_bootloader((u32)&_bootloader_size);
+
+	printf("Bootloader mapped\n");
+	printf("Going to long mode...\n");
 
 	go_long((u32)mem.pml4, e->e_entry, mem.free_page);
 }
