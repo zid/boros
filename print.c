@@ -2,6 +2,8 @@
 #include "print.h"
 #include "stdlib.h"
 
+#define BUF_SIZ 64
+
 unsigned short *vmem = (unsigned short *)0xB8000;
 
 void clear_screen(colour c)
@@ -44,65 +46,77 @@ static void putchar(unsigned char c)
 
 	if(vmem >= (unsigned short *)(0xB8000 + (80 * 25 * 2)))
 	{
-		vmem -= 80;
+		vmem -= 80; /* Short *, not an offset */
 		memmove((void *)0xB8000, (void *)0xB8000 + 160, 80 * 24 * 2);
-		memset( (void *)0xB8F00, 0, 160);
+		 memset((void *)0xB8000+80*24*2, 0, 160);
 	}
 
 	*vmem++ = 0xF00 | c;
 }
 
-static void put_int_hex(unsigned int n)
+static void put_number(unsigned long n, int islong, int base, char pad_char, int width)
 {
-	unsigned int mask = 0xF0000000;
-	unsigned int shift = 28;
-	unsigned int i;
 	unsigned char digit;
+	int len;
+	char buf[BUF_SIZ];
+	char *p = &buf[BUF_SIZ-1];
 
-	for(i = 0; i<8; i++)
+	if(!islong)
+		n = (unsigned int)n;
+
+	do {
+		digit = n % base;
+		n /= base;
+		*p-- = digit["0123456789ABCDEF"];
+	} while(n);
+
+	len = &buf[BUF_SIZ-1] - p;
+	while(width && len < width)
 	{
-		digit = (n&mask)>>shift;
-		shift -= 4;
-		mask >>= 4;
-
-		putchar(digit["0123456789ABCDEF"]);
+		*p-- = pad_char;
+		len++;
 	}
-}
 
-static void put_long_hex(unsigned long n)
-{
-	unsigned long mask = 0xF000000000000000;
-	unsigned long shift = 60;
-	unsigned long i;
-	unsigned char digit;
-
-	for(i = 0; i<16; i++)
-	{
-		digit = (n&mask)>>shift;
-		shift -= 4;
-		mask >>= 4;
-
-		putchar(digit["0123456789ABCDEF"]);
-	}
+	while(++p != &buf[BUF_SIZ])
+		putchar(*p);
 }
 
 static void vprint(const char *fmt, va_list ap)
 {
 	const char *p;
 	unsigned char c;
-	unsigned int i;
 	unsigned long l;
-	int long_int = 0;
-
+	int long_int;
+	char pad_char;
+	int width;
+	int base;
 	p = fmt;
+
 	while(1)
 	{
+		width = 0;
+		pad_char = ' ';
+		long_int = 0;
+
 		for(; *p && *p != '%'; p++)
 			putchar(*p);
 		if(!*p)
 			return;
 		p++;
 again:		c = *p++;
+
+		if(c == '0')
+		{
+			pad_char = '0';
+			c = *p++;
+		}
+
+		while(c >= '0' && c <= '9')
+		{
+			width = width*10 + c - '0';
+			c = *p++;
+		}
+
 		switch(c)
 		{
 			case '%':
@@ -112,18 +126,23 @@ again:		c = *p++;
 				long_int = 1;
 				goto again;
 			break;
+			case 'X':
 			case 'x':
+				base = 16;
+				goto print_num;
+			case 'd':
+				base = 10;
+				goto print_num;
+
+			print_num:
 				if(long_int)
-				{
 					l = va_arg(ap, long);
-					put_long_hex(l);
-				} else {
-					i = va_arg(ap, int);
-					put_int_hex(i);
-				}
-				long_int = 0;
+				else
+					l = va_arg(ap, int);
+				put_number(l, long_int, base, pad_char, width);
 			break;
 		}
+
 	}
 }
 
