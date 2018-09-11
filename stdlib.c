@@ -22,7 +22,7 @@ void memmove(void *s1, const void *s2, int n)
 		bug("memmove called in unsupported way.\n");
 
 	remainder = n % 8;
-	eights = n-remainder;
+	eights = n/8;
 
 	while(eights)
 	{
