@@ -1,5 +1,13 @@
 //#include "bug.h"
 #define bug(x) (void)(x)
+
+void memcpy(void *d, void *s, unsigned int len)
+{
+	unsigned char *dd = d, *ss = s;
+	while(len--)
+		*dd++ = *ss++;
+}
+
 void memset(void *d, int fill, int len)
 {
 	unsigned char *cd = d;
