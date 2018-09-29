@@ -4,9 +4,9 @@ extern _stack_start
 
 section .text
 go_long:
-	mov esi, [esp+8]
-	mov edi, [esp+12]
-	mov ebx, [esp+16]
+	mov esi, [esp+8]	;kernel _start lo
+	mov edi, [esp+12]	;kernel _start hi
+	mov ebx, [esp+16]	;mem info struct
 
 	mov eax, cr4
 	or eax, 1 << 5
@@ -17,7 +17,7 @@ go_long:
 	or eax, 1 << 8
 	wrmsr
 
-	mov eax, [esp+4]
+	mov eax, [esp+4]	;PML4
 	lea ecx, [eax+3]
 	mov [eax+4080], ecx
 	mov cr3, eax
@@ -42,7 +42,7 @@ bits 64
 	or rax, rsi
 	mov esp, _stack_start
 	add rsp, 0xffffffff80001000
-	mov edi, ebx
+	mov edi, ebx	;mem info struct
 	jmp rax
 
 

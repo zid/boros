@@ -3,6 +3,11 @@
 #include "elf.h"
 #include "print.h"
 
+#define VIRT_TO_PHYS (0xFFFFFF8000000000UL)	/* PML4 511 */
+#define BITMAP_BASE  (0xFFFFFE8000000000UL)	/* PML4 509 */
+
+#define TWO_MEGS (2*1024*1024)
+
 extern u32 _bootloader_size;
 
 void __attribute__((noreturn)) go_long(u32, u64, u32);
@@ -33,12 +38,15 @@ struct page_table
 	struct page_table_entry e[512];
 };
 
-static struct memory
+struct mem_info
 {
-	u32 free_page;
-	u64 elf_start;
-	struct page_table *pml4;
+	unsigned long free;
+	unsigned long e820_count;
+	char e820_buf[480];
 } mem;
+
+static unsigned long free_page;
+static struct page_table *pml4;
 
 void clear_page(u32 page)
 {
@@ -48,14 +56,15 @@ void clear_page(u32 page)
 		*p = 0;
 }
 
-u32 new_page(void)
+unsigned long new_page(void)
 {
-	u32 n = mem.free_page;
-	printf("Allocated: %x\n", n);
-	mem.free_page = *((u32 *)mem.free_page);
-	clear_page(n);
+	unsigned long t;
 
-	return n;
+	t = free_page;
+	free_page += 4096;
+	clear_page(t);
+
+	return t;
 }
 
 void map_page(u64 vaddr, u32 paddr, u32 flags)
@@ -71,16 +80,16 @@ void map_page(u64 vaddr, u32 paddr, u32 flags)
 	pte   = (vaddr>>12) & 0x1FF;
 
 	/* If we haven't made set of page tables yet, make some */
-	if(!mem.pml4)
-		mem.pml4 = (struct page_table *)new_page(); /* New PML4 */
+	if(!pml4)
+		pml4 = (struct page_table *)new_page(); /* New PML4 */
 
-	p = mem.pml4;
+	p = pml4;
 
 	if(!p->e[pml4e].present)
 	{
 		new = new_page(); /* New PDPT */
-		mem.pml4->e[pml4e].entry = new;
-		mem.pml4->e[pml4e].present = 1;
+		pml4->e[pml4e].entry = new;
+		pml4->e[pml4e].present = 1;
 		p = (struct page_table *)new;
 	} else {
 		p = (struct page_table *)(u32)(p->e[pml4e].entry & 0xFFFFFFFFFE00ULL);
@@ -113,11 +122,11 @@ void map_page(u64 vaddr, u32 paddr, u32 flags)
 }
 
 
-void map_section(struct program_header *p)
+void map_section(struct program_header *p, u64 elf_start)
 {
 	u64 paddr, vaddr;
 
-	paddr = p->p_offset + mem.elf_start;
+	paddr = p->p_offset + elf_start;
 	printf("Map section: %lx %lx\n", p->p_vaddr, paddr);
 	/* Map each page in the section */
 	for(vaddr = p->p_vaddr; vaddr < p->p_vaddr + p->p_memsz; vaddr += 4096)
@@ -151,32 +160,30 @@ void map_bootloader(u32 size)
 	}
 }
 
-static void page_add(unsigned long page)
+static void map_range(unsigned long start, unsigned long len)
 {
-	unsigned long *pp;
+	unsigned long page;
 
-	pp = (unsigned long *)page;
-	pp[0] = mem.free_page;
-	pp[1] = 0;
-	mem.free_page = page;
+	/* Displaced identity map each page */
+	for(page = start; page < start + len; page += 4096)
+		map_page(VIRT_TO_PHYS + page, page, SHF_WRITE);
 }
 
-static int is_kernel_page(unsigned long kernel_size, unsigned long page)
+static void memcpy(void *d, void *s, unsigned long n)
 {
-	if(page >= 0x100000 && page < 0x100000 + kernel_size)
-		return 1;
-	return 0;
+	unsigned char *dd = d, *ss = s;
+	while(n--)
+		*dd++ = *ss++;
 }
 
 static void init_mem(struct multiboot *mb, unsigned long kernel_end)
 {
 	struct mem *m;
 
+	free_page = kernel_end;
+
 	for(m = mb->mmap_addr; (char *)m < (char *)mb->mmap_addr + mb->mmap_len; m++)
 	{
-		unsigned long page, start, end;
-
-		/* RAM */
 		if(m->type != 1)
 			continue;
 		if(m->addr < 0x100000)
@@ -184,17 +191,15 @@ static void init_mem(struct multiboot *mb, unsigned long kernel_end)
 		if(m->addr >= 0x100000000UL)
 			continue;
 
-		start = m->addr;
-		end   = start + m->len;
-
-		for(page = start; page < end; page += 4096)
-		{
-			if(is_kernel_page(kernel_end, page))
-				continue;
-
-			page_add(page);
-		}
+		map_range(m->addr, m->addr + m->len);
 	}
+
+	if(mb->mmap_len > 480)
+		printf("E820 too big for buffer!\n");
+
+	/* Save a copy of the e820 for the kernel */
+	memcpy(mem.e820_buf, mb->mmap_addr, mb->mmap_len);
+	mem.e820_count  = mb->mmap_len / 24;
 }
 
 void __attribute__((noreturn)) main(struct multiboot *mb)
@@ -214,25 +219,23 @@ void __attribute__((noreturn)) main(struct multiboot *mb)
 
 	printf("Kernel: %lx-%lx\n", kernel_start, kernel_end);
 
+	/* Map RAM below 4G for the kernel to start with */
 	init_mem(mb, kernel_end);
 
 	printf("Memory initialized\n");
-
-	mem.elf_start = kernel_start;
-	mem.pml4 = 0;
 
 	e = (struct elf_header *)kernel_start;
 	p = (struct program_header *)(u32)(e->e_phoff + kernel_start);
 
 	for(i = 0; i < e->e_phnum; i++)
-		map_section(&p[i]);
+		map_section(&p[i], kernel_start);
 
 	printf("Kernel mapped\n");
 
 	map_bootloader((u32)&_bootloader_size);
-
-	printf("Bootloader mapped\n");
 	printf("Going to long mode...\n");
 
-	go_long((u32)mem.pml4, e->e_entry, mem.free_page);
+	mem.free = free_page;
+
+	go_long((u32)pml4, e->e_entry, (u32)&mem);
 }

@@ -10,7 +10,6 @@ SECTIONS
 		* (.text.startup);
 		* (.text);
 	}
-	_bootloader_size = ALIGN(0x1000) - 0x100000;
 	.rodata : ALIGN(8) { * (.rodata*); }
 	.data : ALIGN(8) { * (.data); }
 	.bss ALIGN(0x1000) :
@@ -19,5 +18,7 @@ SECTIONS
 		. += 0x1000;
 		* (.bss);
 	}
+	
+	_bootloader_size = ALIGN(0x1000) - 0x100000;
 	/DISCARD/ : { * (.*); }
 }
