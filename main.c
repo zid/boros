@@ -2,9 +2,9 @@
 #include "mem.h"
 #include "print.h"
 
-void kmain(u64 free_page)
+void kmain(void *mem)
 {
-	mem_init(free_page);
+	mem_init(mem);
 
 	clear_screen(0);
 	printf("Hello from long mode\n");
