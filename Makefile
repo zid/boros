@@ -7,8 +7,8 @@
 	run-qemu-hd-efi
 
 CFLAGS = -W -Wall -nodefaultlibs \
-	-nostdlib -ffreestanding -O2 -g -mno-mmx -mno-sse -mno-sse2 \
-	-mno-sse3 -mcmodel=kernel -mno-red-zone -Iinclude/ -fno-pic \
+	-nostdlib -ffreestanding -O2 -ggdb -mgeneral-regs-only \
+	-mcmodel=kernel -mno-red-zone -Iinclude/ -fno-pic \
 	-fno-stack-protector
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
