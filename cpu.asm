@@ -1,5 +1,6 @@
 global get_cr3, set_cr3, outb
-global out32, in32
+global out32, in32, cpu_lidt
+global inb
 
 get_cr3:
 	mov rax, cr3
@@ -15,7 +16,10 @@ outb:
 	mov rax, rsi
 	out dx, al
 	ret
-
+inb:
+	mov rdx, rdi
+	in al, dx
+	ret
 out32:
 	mov rdx, rdi
 	mov rax, rsi
@@ -25,4 +29,8 @@ out32:
 in32:
 	mov rdx, rdi
 	in eax, dx
+	ret
+
+cpu_lidt:
+	lidt [rdi]
 	ret
