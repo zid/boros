@@ -112,14 +112,17 @@ static void bitmap_claim_page(u64 page)
 	*b &= ~(1U<<(bit_offset%8));
 }
 
-static void bitmap_add_range(u64 addr, u64 len)
+/* Every 128MB of memory needs 1 bitmap page */
+static void bitmap_add_range(const u64 addr, const u64 len)
 {
-	u64 page;
+	u64 page, offset;
 	const u64 ratio = (128*1024*1024UL);
-
-	/* Every 128MB of memory needs 1 bitmap page */
-	for(page = addr/ratio; (page*ratio) < addr+len; page += 4096)
-		early_map(BITMAP_BASE + page, early_phys_alloc());
+	const u64 divisor = (128*1024*1024UL / 4096);
+	
+	/* Walk forwards in 128MB increments after rounding down */
+	offset = addr & ~(ratio-1);
+	for(; offset < addr + len; offset += ratio)
+		early_map(BITMAP_BASE + offset/32768, early_phys_alloc());
 
 	/* Initialize them to free */
 	for(page = addr; page < addr + len - 4096; page += 4096)
@@ -127,7 +130,8 @@ static void bitmap_add_range(u64 addr, u64 len)
 		/* Unless we already used it */
 		if(page >= 0x100000 && page < free_page)
 			bitmap_claim_page(page);
-		bitmap_free_page(page);
+		else
+			bitmap_free_page(page);
 	}
 }
 
@@ -153,7 +157,6 @@ static void phys_add_range(u64 addr, u64 len)
 
 	/* Allocate bitmap pages if needed, and mark the pages as free */
 	bitmap_add_range(addr, len);
-
 	/* Note: Has integer under/overflow issues */
 	for(page = addr; page < addr+len-TWO_MEGS; page += TWO_MEGS)
 		phys_add_page(page, PAGE_2M);
