@@ -48,7 +48,6 @@ u64 early_phys_alloc(void)
 
 	page = free_page;
 	free_page += 4096;
-
 	return page;
 }
 
@@ -65,21 +64,21 @@ void early_map(unsigned long vaddr, unsigned long paddr)
 	/* Do we need to make a new PDPT? */
 	p = page_table(RECURSE, RECURSE, RECURSE) + pml4e;
 	if(!*p)
-		*p = early_phys_alloc() | 3;
+		*p = early_phys_alloc() | PT_WR | PT_PRESENT;
 
 	/* Do we need to make a new PD? */
 	p = page_table(RECURSE, RECURSE, pml4e) + pdpte;
 	if(!*p)
-		*p = early_phys_alloc() | 3;
+		*p = early_phys_alloc() | PT_WR | PT_PRESENT;
 
 	/* Do we need to make a new PT? */
 	p = page_table(RECURSE, pml4e, pdpte) + pde;
 	if(!*p)
-		*p = early_phys_alloc() | 3;
+		*p = early_phys_alloc() | PT_WR | PT_PRESENT;
 
 	/* Map the page into the page table */
 	p = page_table(pml4e, pdpte, pde) + pte;
-	*p = paddr | 3;
+	*p = paddr | PT_WR | PT_PRESENT;
 }
 
 static int is_free(u64 page)
@@ -117,8 +116,7 @@ static void bitmap_add_range(const u64 addr, const u64 len)
 {
 	u64 page, offset;
 	const u64 ratio = (128*1024*1024UL);
-	const u64 divisor = (128*1024*1024UL / 4096);
-	
+
 	/* Walk forwards in 128MB increments after rounding down */
 	offset = addr & ~(ratio-1);
 	for(; offset < addr + len; offset += ratio)
@@ -144,7 +142,7 @@ static void phys_add_page(u64 page, enum PAGE_SIZE size)
 	if(!is_free(page))
 		return;
 
-	t = phys_to_virt(page);
+	t = (void *)phys_to_virt(page);
 	n = freelist[size];
 
 	freelist[size] = (struct node *)page;
@@ -157,6 +155,7 @@ static void phys_add_range(u64 addr, u64 len)
 
 	/* Allocate bitmap pages if needed, and mark the pages as free */
 	bitmap_add_range(addr, len);
+
 	/* Note: Has integer under/overflow issues */
 	for(page = addr; page < addr+len-TWO_MEGS; page += TWO_MEGS)
 		phys_add_page(page, PAGE_2M);
@@ -173,23 +172,25 @@ static void phys_fix_early_gap(void)
 	aligned = ((free_page+TWO_MEGS-1)/TWO_MEGS)*TWO_MEGS;
 	if(aligned == free_page)
 		return;
-	
+
 	for(page = free_page; page < aligned; page += 4096)
 		phys_add_page(page, PAGE_4K);
 }
 
 u64 phys_alloc(enum PAGE_SIZE size)
 {
-	struct node *n;
+	u64 n;
 
-	n = freelist[size];
+	n = (u64)freelist[size];
 	if(!n)
 		return 0;
 
 	freelist[size] = ((struct node *)phys_to_virt(n))->next;
 	/* TODO: bitmap */
 
-	return (u64)n;
+	/* Clean up the freelist pointer */
+	*((u64 *)phys_to_virt(n)) = 0;
+	return n;
 }
 
 void mmap(u64 vaddr, u64 paddr, u64 len, u32 flags)
@@ -221,8 +222,14 @@ void mmap(u64 vaddr, u64 paddr, u64 len, u32 flags)
 
 		/* Map the page into the page table */
 		p = page_table(pml4e, pdpte, pde) + pte;
+
+		/* Entry already exists, don't map it twice */
+#if 0
+		if(*p)
+			{printf("mmap: Already mapped, skipping: %lx %lx\n", p, *p);continue;}
+#endif
 		*p = paddr | flags | PT_PRESENT;
-	}	
+	}
 }
 
 void mem_init(void *m)

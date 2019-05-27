@@ -1,8 +1,9 @@
-#include "types.h"
-#include "mem.h"
-#include "print.h"
-#include "int.h"
-#include "pci.h"
+#include <types.h>
+#include <mem.h>
+#include <print.h>
+#include <int.h>
+#include <pci.h>
+#include <acpi.h>
 
 void kmain(void *mem)
 {
@@ -12,8 +13,11 @@ void kmain(void *mem)
 	printf("Hello from long mode\n");
 
 	int_install();
-	pci_init();
+	acpi_init();
+	//pci_init();
 
 	while(1)
-		;
+	{
+		asm("hlt");
+	}
 }

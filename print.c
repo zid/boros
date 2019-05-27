@@ -43,6 +43,14 @@ static void putchar(unsigned char c)
 {
 	if(c == '\n')
 		return newline();
+	if(c == '\t')
+	{
+		putchar(' ');
+		putchar(' ');
+		putchar(' ');
+		putchar(' ');
+		return;
+	}
 
 	if(vmem >= (unsigned short *)(0xB8000 + (80 * 25 * 2)))
 	{
@@ -79,6 +87,12 @@ static void put_number(unsigned long n, int islong, int base, char pad_char, int
 
 	while(++p != &buf[BUF_SIZ])
 		putchar(*p);
+}
+
+static void puts(const char *str)
+{
+	while(*str)
+		putchar(*str++);
 }
 
 static void vprint(const char *fmt, va_list ap)
@@ -134,6 +148,13 @@ again:		c = *p++;
 				base = 10;
 				goto print_num;
 
+
+			case 's':
+				puts(va_arg(ap, const char *));
+			break;
+			case 'c':
+				putchar(va_arg(ap, int));
+			break;
 			print_num:
 				if(long_int)
 					l = va_arg(ap, long);

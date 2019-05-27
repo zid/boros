@@ -1,9 +1,10 @@
-#include "types.h"
-#include "pci.h"
-#include "print.h"
-#include "mem.h"
-#include "int.h"
-#include "cpu.h"
+#include <types.h>
+#include <device.h>
+#include <mem.h>
+#include <int.h>
+#include <print.h>
+#include <net.h>
+#include <cpu.h>
 
 #define RX_NUM 16
 #define TX_NUM 16
@@ -122,16 +123,16 @@ static void __attribute__((interrupt)) e1000_interrupt(void *p)
 	outb(0x20, 0x20);
 }
 
-void e1000_init(u8 bus, u8 dev)
+
+void e1000_init(struct device *d)
 {
 	int i;
 	u32 r;
 	u8 mac[6];
-	u64 vbuf;
 
-	base_addr = pci_read_u32(bus, dev, 0, 0x10);
+	base_addr = device_read_u32(d, 0x10);
 	printf("[E1000] Base: %08x\n", base_addr);
-	mmap(base_addr, base_addr, 0x10000, PT_WR);
+	mmap(base_addr, base_addr, 0x10000, PT_WR | PT_PRESENT);
 
 	/* Read the MAC address from the EEPROM */
 	write_reg32(EERD, 1 | 0<<8);
@@ -150,12 +151,9 @@ void e1000_init(u8 bus, u8 dev)
 	printf("[E1000] MAC: %02X%02X%02X%02X%02X%02X\n",
 		mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]
 	);
-
 	/* Grab at 2MB page and divide it into two 1MB regions for RX and TX */
 	buf = phys_alloc(PAGE_2M);
-	vbuf = buf + 0xffffff8000000000UL;
-	rx_desc = (struct rx_desc *)vbuf;
-
+	rx_desc = (struct rx_desc *)phys_to_virt(buf);
 	/* Prime each RX descriptor with a 16k region */
 	for(i = 0; i < RX_NUM; i++)
 	{
@@ -170,7 +168,7 @@ void e1000_init(u8 bus, u8 dev)
 	/* Very promiscuous settings */
 	write_reg32(RX_CTRL, 1<<1 | 1<<2 | 1<<3 |1<<4| 1<<5 | 1<<15 | 3<<16 | 1<<25 );
 
-	tx_desc = (struct tx_desc *)(vbuf+1024*1024);
+	tx_desc = (struct tx_desc *)(phys_to_virt(buf+1024*1024));
 	/* Prime each TX buffer with a 16kB region in the second 1MB region */
 	for(i = 0; i < TX_NUM; i++)
 	{

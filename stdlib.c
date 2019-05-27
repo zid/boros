@@ -1,14 +1,30 @@
-//#include "bug.h"
-#define bug(x) (void)(x)
+#include <bug.h>
+#include <stdlib.h>
 
-void memcpy(void *d, void *s, unsigned int len)
+int memcmp(void *d, void *s, size_t len)
 {
 	unsigned char *dd = d, *ss = s;
+
+	while(len--)
+	{
+		if(*dd != *ss)
+			return *dd - *ss;
+		dd++;
+		ss++;
+	}
+
+	return 0;
+}
+
+void memcpy(void *d, void *s, size_t len)
+{
+	unsigned char *dd = d, *ss = s;
+
 	while(len--)
 		*dd++ = *ss++;
 }
 
-void memset(void *d, int fill, int len)
+void memset(void *d, int fill, size_t len)
 {
 	unsigned char *cd = d;
 
@@ -16,7 +32,7 @@ void memset(void *d, int fill, int len)
 		*cd++ = fill;
 }
 
-void memmove(void *s1, const void *s2, int n)
+void memmove(void *s1, const void *s2, size_t n)
 {
 	unsigned long *lp1 = s1;
 	const unsigned long *lp2 = s2;

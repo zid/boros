@@ -1,8 +1,9 @@
 #include "types.h"
 
 enum {
-	SHF_WRITE = 1,
-	SHF_EXECINSTR = 4
+	PF_X = 1,
+	PF_W = 2,
+	PF_R = 4
 };
 
 struct program_header {

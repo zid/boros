@@ -21,9 +21,7 @@ all: kernel.bin boot.bin
 
 prep:
 	mkdir -p fs
-	losetup /dev/loop1 fs.bin
-	losetup /dev/loop2 -o 32256 /dev/loop1
-	mount /dev/loop2 fs
+	mount -o loop=/dev/loop1 fs.bin fs/
 
 install: kernel.bin boot.bin
 	cp boot/boot.bin fs/boot/

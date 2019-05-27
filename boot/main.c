@@ -4,31 +4,35 @@
 #include "print.h"
 
 #define VIRT_TO_PHYS (0xFFFFFF8000000000UL)	/* PML4 511 */
-#define BITMAP_BASE  (0xFFFFFE8000000000UL)	/* PML4 509 */
 
 #define TWO_MEGS (2*1024*1024)
 
 extern u32 _bootloader_size;
+extern u32 _stack_start;
 
 void __attribute__((noreturn)) go_long(u32, u64, u32);
 
 struct page_table_entry
 {
-	union {
-		u64 present :1;
-		u64 rw      :1;
-		u64 us      :1;
-		u64 pwt     :1;
-		u64 pcd     :1;
-		u64 a       :1;
-		u64 dirty   :1;
-		u64 pat     :1;
-		u64 global  :1;
-		u64 ignore2 :3;
-		u64 addr    :40;
-		u64 ignore3 :7;
-		u64 pke     :4;
-		u64 nx      :1;
+	union
+	{
+		struct
+		{
+			u64 present :1;
+			u64 rw      :1;
+			u64 us      :1;
+			u64 pwt     :1;
+			u64 pcd     :1;
+			u64 a       :1;
+			u64 dirty   :1;
+			u64 pat     :1;
+			u64 global  :1;
+			u64 ignore2 :3;
+			u64 addr    :40;
+			u64 ignore3 :7;
+			u64 pke     :4;
+			u64 nx      :1;
+		};
 		u64 entry;
 	};
 };
@@ -48,7 +52,7 @@ struct mem_info
 static unsigned long free_page;
 static struct page_table *pml4;
 
-void clear_page(u32 page)
+static void clear_page(u32 page)
 {
 	char *p;
 
@@ -56,7 +60,7 @@ void clear_page(u32 page)
 		*p = 0;
 }
 
-unsigned long new_page(void)
+static unsigned long new_page(void)
 {
 	unsigned long t;
 
@@ -67,7 +71,7 @@ unsigned long new_page(void)
 	return t;
 }
 
-void map_page(u64 vaddr, u32 paddr, u32 flags)
+static void map_page(u64 vaddr, u32 paddr, u32 flags)
 {
 	int pml4e, pdpte, pde, pte;
 	struct page_table *p;
@@ -89,6 +93,7 @@ void map_page(u64 vaddr, u32 paddr, u32 flags)
 	{
 		new = new_page(); /* New PDPT */
 		pml4->e[pml4e].entry = new;
+		pml4->e[pml4e].rw = 1;
 		pml4->e[pml4e].present = 1;
 		p = (struct page_table *)new;
 	} else {
@@ -99,6 +104,7 @@ void map_page(u64 vaddr, u32 paddr, u32 flags)
 	{
 		new = new_page(); /* New PD */
 		p->e[pdpte].entry = new;
+		p->e[pdpte].rw = 1;
 		p->e[pdpte].present = 1;
 		p = (struct page_table *)new;
 	} else {
@@ -109,20 +115,20 @@ void map_page(u64 vaddr, u32 paddr, u32 flags)
 	{
 		new = new_page(); /* New PT */
 		p->e[pde].entry = new;
+		p->e[pde].rw = 1;
 		p->e[pde].present = 1;
 		p = (struct page_table *)new;
 	} else {
 		p = (struct page_table *)(u32)(p->e[pde].entry & 0xFFFFFFFFFE00ULL);
 	}
-
 	p->e[pte].entry = paddr;
-	p->e[pte].rw = !!(flags & SHF_WRITE);
-	p->e[pte].nx = !(flags & SHF_EXECINSTR);
+	p->e[pte].rw = !!(flags & PF_W);
+	p->e[pte].nx = !(flags & PF_X);
 	p->e[pte].present = 1;
 }
 
 
-void map_section(struct program_header *p, u64 elf_start)
+static void map_section(struct program_header *p, u64 elf_start)
 {
 	u64 paddr, vaddr;
 
@@ -143,21 +149,26 @@ void map_section(struct program_header *p, u64 elf_start)
 			 * allocate memory and zero it instead. */
 			paddr = new_page();
 		}
-		printf("Mapping %lx to %lx\n", vaddr, paddr);
+		printf("Mapping %lx to %lx (%x)\n", vaddr, paddr, p->p_flags);
 		map_page(vaddr, paddr, p->p_flags);
 		paddr += 4096;
 
 	}
 }
 
-void map_bootloader(u32 size)
+static void map_bootloader(u32 size)
 {
-	u32 addr;
+	u32 addr, end;
 
-	for(addr = 0x100000; addr < 0x100000 + size; addr += 4096)
-	{
-		map_page(addr, addr, SHF_EXECINSTR);
-	}
+	/* Map the pages before .bss as executable */
+	end = (u32)&_stack_start - 0x1000;
+	for(addr = 0x100000; addr < end; addr += 0x1000)
+		map_page(addr, addr, PF_X);
+
+	/* Map the pages in .bss as writeable */
+	printf("Addr: %x Size: %x\n", addr, size);
+	for(addr; addr < end + size; addr += 0x1000)
+		map_page(addr, addr, PF_W);
 }
 
 static void map_range(unsigned long start, unsigned long len)
@@ -165,8 +176,8 @@ static void map_range(unsigned long start, unsigned long len)
 	unsigned long page;
 
 	/* Displaced identity map each page */
-	for(page = start; page < start + len; page += 4096)
-		map_page(VIRT_TO_PHYS + page, page, SHF_WRITE);
+	for(page = start; page < start + len; page += 0x1000)
+		map_page(VIRT_TO_PHYS + page, page, PF_W);
 }
 
 static void memcpy(void *d, void *s, unsigned long n)

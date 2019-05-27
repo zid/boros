@@ -9,12 +9,17 @@ go_long:
 	mov ebx, [esp+16]	;mem info struct
 
 	mov eax, cr4
-	or eax, 1 << 5
+	or eax, 1 << 5          ;PAE
+	and eax, ~(1 << 7)      ;Disable PGE
 	mov cr4, eax
+	or eax, 1<<7            ;Enable PGE
+	mov cr4, eax
+
 
 	mov ecx, 0xC0000080
 	rdmsr
-	or eax, 1 << 8
+	or eax, 1 << 11         ;NX
+	or eax, 1 << 8          ;Long mode
 	wrmsr
 
 	mov eax, [esp+4]	;PML4
@@ -23,7 +28,7 @@ go_long:
 	mov cr3, eax
 
 	mov eax, cr0
-	or eax, 1<<31
+	or eax, 1<<31 | 1<<16   ;Paging + Write protect
 	mov cr0, eax
 
 	lgdt [gdt]
@@ -41,7 +46,6 @@ bits 64
 	shl rax, 32
 	or rax, rsi
 	mov esp, _stack_start
-	add rsp, 0xffffffff80001000
 	mov edi, ebx	;mem info struct
 	jmp rax
 
