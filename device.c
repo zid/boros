@@ -61,3 +61,4 @@ u16 device_read_u16(struct device *d, u32 offset)
 		break;
 	}
 }
+

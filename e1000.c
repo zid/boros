@@ -70,6 +70,7 @@ static void write_reg64(enum REGISTER reg, u64 value)
 
 static void write_reg32(enum REGISTER reg, u32 value)
 {
+	printf("w: %lx %d\n", base_addr + reg, value);
 	*((volatile u32 *)(base_addr + reg)) = value;
 }
 
@@ -93,8 +94,15 @@ static void print_buf(u8 *b, u32 len)
 
 static void e1000_recv(void)
 {
-	static unsigned int rx_cur;
+	unsigned int rx_cur;
 
+	rx_cur = (read_reg32(RX_DESC_TAIL)+1)%RX_NUM;
+	printf("Head: %d, Tail: %d\n", read_reg32(RX_DESC_HEAD), rx_cur);
+	int i;
+	for(i = 0; i<16; i++)
+	{
+		printf("buf[%d]: status: %d\n", i, rx_desc[i].status);
+	}
 	while(rx_desc[rx_cur].status & 0x1)
 	{
 		u64 buf;
@@ -104,7 +112,8 @@ static void e1000_recv(void)
 		len = rx_desc[rx_cur].len;
 
 		printf("Packet recv: %lx (%d)\n", buf, len);
-		print_buf((void *)phys_to_virt(buf), len);
+		//print_buf((void *)phys_to_virt(buf), len);
+		rx_desc[rx_cur].status = 0;
 		write_reg32(RX_DESC_TAIL, rx_cur);
 		rx_cur++;
 		rx_cur = rx_cur % RX_NUM;
@@ -115,8 +124,11 @@ static void __attribute__((interrupt)) e1000_interrupt(void *p)
 {
 
 	(void)p;
-	
-	if(read_reg32(ICR) & 0x80)
+	u32 icr;
+
+	icr = read_reg32(ICR);
+	printf("ICR: %x\n", icr);
+	if(icr & 0x80)
 		e1000_recv();
 
 	outb(0xA0, 0x20);
@@ -129,6 +141,11 @@ void e1000_init(struct device *d)
 	int i;
 	u32 r;
 	u8 mac[6];
+	u32 command;
+
+	command = device_read_u32(d, 0x4);
+	command |= 0x4; /* PCI Bus mastering */
+	device_write_u32(d, 0x4, command);
 
 	base_addr = device_read_u32(d, 0x10);
 	printf("[E1000] Base: %08x\n", base_addr);
@@ -163,7 +180,7 @@ void e1000_init(struct device *d)
 	write_reg64(RX_DESC, buf);
 	write_reg32(RX_DESC_LEN, RX_NUM * sizeof(struct rx_desc));
 	write_reg32(RX_DESC_HEAD, 0);
-	write_reg32(RX_DESC_TAIL, 0);
+	write_reg32(RX_DESC_TAIL, 15);
 
 	/* Very promiscuous settings */
 	write_reg32(RX_CTRL, 1<<1 | 1<<2 | 1<<3 |1<<4| 1<<5 | 1<<15 | 3<<16 | 1<<25 );
@@ -181,12 +198,12 @@ void e1000_init(struct device *d)
 	write_reg64(TX_DESC, buf + 1024*1024);
 	write_reg32(TX_DESC_LEN, sizeof (struct tx_desc[TX_NUM]));
 	write_reg32(TX_DESC_HEAD, 0);
-	write_reg32(TX_DESC_TAIL, 0);
+	write_reg32(TX_DESC_TAIL, 16);
 	write_reg32(TX_CTRL, 1<<1 | 1<<3 | 0xF<<4 | 0x40<<12);
 
 	/* Clear Multicast Table Array */
 	for(i = 0; i < 128; i++)
-		write_reg32(MTA + i*4, 0);
+	;//	write_reg32(MTA + i*4, 0);
 
 	/* Write the MAC back into the receive address register */
 	write_reg32(RAL, mac[3]<<24 | mac[2]<<16 | mac[1]<<8 | mac[0]);

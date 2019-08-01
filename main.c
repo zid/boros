@@ -13,8 +13,8 @@ void kmain(void *mem)
 	printf("Hello from long mode\n");
 
 	int_install();
-	acpi_init();
-	//pci_init();
+	//acpi_init();
+	pci_init();
 
 	while(1)
 	{
