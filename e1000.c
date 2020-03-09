@@ -70,7 +70,6 @@ static void write_reg64(enum REGISTER reg, u64 value)
 
 static void write_reg32(enum REGISTER reg, u32 value)
 {
-	printf("w: %lx %d\n", base_addr + reg, value);
 	*((volatile u32 *)(base_addr + reg)) = value;
 }
 
@@ -79,30 +78,12 @@ static u32 read_reg32(enum REGISTER reg)
 	return *((volatile u32 *)(base_addr + reg));
 }
 
-static void print_buf(u8 *b, u32 len)
-{
-	u32 i;
-
-	for(i = 0; i < len; i++)
-	{
-		printf("%02X ", b[i]);
-		if(i % 16 == 15)
-			printf("\n");
-	}
-	printf("\n");
-}
-
 static void e1000_recv(void)
 {
 	unsigned int rx_cur;
 
 	rx_cur = (read_reg32(RX_DESC_TAIL)+1)%RX_NUM;
-	printf("Head: %d, Tail: %d\n", read_reg32(RX_DESC_HEAD), rx_cur);
-	int i;
-	for(i = 0; i<16; i++)
-	{
-		printf("buf[%d]: status: %d\n", i, rx_desc[i].status);
-	}
+	
 	while(rx_desc[rx_cur].status & 0x1)
 	{
 		u64 buf;
@@ -111,8 +92,7 @@ static void e1000_recv(void)
 		buf = rx_desc[rx_cur].addr;
 		len = rx_desc[rx_cur].len;
 
-		printf("Packet recv: %lx (%d)\n", buf, len);
-		//print_buf((void *)phys_to_virt(buf), len);
+		net_give_packet(buf, len);
 		rx_desc[rx_cur].status = 0;
 		write_reg32(RX_DESC_TAIL, rx_cur);
 		rx_cur++;
@@ -127,7 +107,6 @@ static void __attribute__((interrupt)) e1000_interrupt(void *p)
 	u32 icr;
 
 	icr = read_reg32(ICR);
-	printf("ICR: %x\n", icr);
 	if(icr & 0x80)
 		e1000_recv();
 
@@ -135,6 +114,29 @@ static void __attribute__((interrupt)) e1000_interrupt(void *p)
 	outb(0x20, 0x20);
 }
 
+static unsigned int tx_cur;
+
+void e1000_send(unsigned int len)
+{
+	tx_desc[tx_cur].len = len;
+	tx_desc[tx_cur].cmd = 1 /* End of packet */ | 2 /* IFCS */;
+	tx_desc[tx_cur].status = 0;
+
+	tx_cur = (tx_cur+1)%TX_NUM;
+	write_reg32(TX_DESC_TAIL, tx_cur);
+	while(read_reg32(TX_DESC_HEAD) != tx_cur)
+		;
+}
+
+unsigned long e1000_get_buf(void)
+{
+	unsigned long buf;
+
+	buf = tx_desc[tx_cur].addr;
+	tx_cur = tx_cur % TX_NUM;
+
+	return buf;
+}
 
 void e1000_init(struct device *d)
 {
@@ -148,6 +150,7 @@ void e1000_init(struct device *d)
 	device_write_u32(d, 0x4, command);
 
 	base_addr = device_read_u32(d, 0x10);
+	base_addr &= ~7;
 	printf("[E1000] Base: %08x\n", base_addr);
 	mmap(base_addr, base_addr, 0x10000, PT_WR | PT_PRESENT);
 
@@ -216,7 +219,9 @@ void e1000_init(struct device *d)
 
 	/* Enable RX interrupt */
 	write_reg32(ICR, 0xFFFF);
-	write_reg32(IMS, 1<<4);
+	write_reg32(IMS, 1<<7);
 	write_reg32(ICS, 4);
+
+	net_set_mac(mac);
 }
 
