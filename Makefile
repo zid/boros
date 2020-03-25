@@ -9,7 +9,7 @@
 CFLAGS = -W -Wall -nodefaultlibs \
 	-nostdlib -ffreestanding -O2 -ggdb -mgeneral-regs-only \
 	-mcmodel=kernel -mno-red-zone -Iinclude/ -fno-pic \
-	-fno-stack-protector
+	-fno-stack-protector -masm=intel
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 ASMSRC = $(wildcard *.asm)
@@ -17,19 +17,23 @@ ASMOBJ = $(ASMSRC:.asm=.o)
 BOOT_CD_GRUB_MENU_FILE = output/cdroot/boot/grub/menu.lst
 BOOT_CD_ISOLINUX_MENU_FILE = output/cdroot/isolinux/isolinux.cfg
 
-all: kernel.bin boot.bin
+all: kernel.bin boot.bin user.bin
 
 prep:
 	mkdir -p fs
 	mount -o loop=/dev/loop1 fs.bin fs/
 
-install: kernel.bin boot.bin
+install: kernel.bin boot.bini user.bin
 	cp boot/boot.bin fs/boot/
 	cp kernel.bin fs/boot/
+	cp user/user.bin fs/boot/
 	sync
 
 boot.bin:
 	$(MAKE) -C boot/
+
+user.bin:
+	$(MAKE) -C user/
 
 kernel.bin: $(OBJ) $(ASMOBJ)
 	ld -Tlinker.ld $(OBJ) $(ASMOBJ) -o kernel.bin -z max-page-size=4096 \
@@ -44,11 +48,12 @@ kernel.bin: $(OBJ) $(ASMOBJ)
 output:
 	mkdir $@
 
-output/boot-cd-grub.iso : kernel.bin boot.bin output
+output/boot-cd-grub.iso : user.bin kernel.bin boot.bin output
 	mkdir -p output/cdroot/boot/grub
 	cp -f 3rdparty/grub/stage2_eltorito output/cdroot/boot/grub/
 	cp -f boot/boot.bin output/cdroot/boros.bin
 	cp -f kernel.bin output/cdroot/kernel.bin
+	cp -f user/user.bin output/cdroot/user.bin
 
 	echo "default 0"                >  $(BOOT_CD_GRUB_MENU_FILE)
 	echo "timeout 1"                >> $(BOOT_CD_GRUB_MENU_FILE)
@@ -56,6 +61,8 @@ output/boot-cd-grub.iso : kernel.bin boot.bin output
 	echo "  root (cd)"              >> $(BOOT_CD_GRUB_MENU_FILE)
 	echo "  kernel (cd)/boros.bin"  >> $(BOOT_CD_GRUB_MENU_FILE)
 	echo "	module (cd)/kernel.bin" >> $(BOOT_CD_GRUB_MENU_FILE)
+	echo "  module (cd)/user.bin"   >> $(BOOT_CD_GRUB_MENU_FILE)
+
 	mkisofs \
 		-o $@ \
 		-b boot/grub/stage2_eltorito \
@@ -143,5 +150,6 @@ run-qemu-hd-efi : output/hd-efi.img
 
 clean:
 	$(MAKE) -C boot clean
+	$(MAKE) -C user clean
 	-rm *.o kernel.bin kernel.map
 	-rm -rf output/*
