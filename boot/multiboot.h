@@ -16,7 +16,7 @@ struct module
 	u32 mod_start;
 	u32 mod_end;
 	const char *name;
-	char reserved[12];
+	u32 reserved;
 };
 
 struct multiboot
