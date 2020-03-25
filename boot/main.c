@@ -71,7 +71,7 @@ static unsigned long new_page(void)
 	return t;
 }
 
-static void map_page(u64 vaddr, u32 paddr, u32 flags)
+static void map_page(u64 vaddr, u32 paddr, u32 flags, u32 is_kernel)
 {
 	int pml4e, pdpte, pde, pte;
 	struct page_table *p;
@@ -94,6 +94,7 @@ static void map_page(u64 vaddr, u32 paddr, u32 flags)
 		new = new_page(); /* New PDPT */
 		pml4->e[pml4e].entry = new;
 		pml4->e[pml4e].rw = 1;
+		pml4->e[pml4e].us = 1;
 		pml4->e[pml4e].present = 1;
 		p = (struct page_table *)new;
 	} else {
@@ -105,6 +106,7 @@ static void map_page(u64 vaddr, u32 paddr, u32 flags)
 		new = new_page(); /* New PD */
 		p->e[pdpte].entry = new;
 		p->e[pdpte].rw = 1;
+		p->e[pdpte].us = 1;
 		p->e[pdpte].present = 1;
 		p = (struct page_table *)new;
 	} else {
@@ -116,6 +118,7 @@ static void map_page(u64 vaddr, u32 paddr, u32 flags)
 		new = new_page(); /* New PT */
 		p->e[pde].entry = new;
 		p->e[pde].rw = 1;
+		p->e[pde].us = 1;
 		p->e[pde].present = 1;
 		p = (struct page_table *)new;
 	} else {
@@ -124,11 +127,12 @@ static void map_page(u64 vaddr, u32 paddr, u32 flags)
 	p->e[pte].entry = paddr;
 	p->e[pte].rw = !!(flags & PF_W);
 	p->e[pte].nx = !(flags & PF_X);
+	p->e[pte].us = !is_kernel;
 	p->e[pte].present = 1;
 }
 
 
-static void map_section(struct program_header *p, u64 elf_start)
+static void map_section(struct program_header *p, u64 elf_start, u32 is_kernel)
 {
 	u64 paddr, vaddr;
 
@@ -150,7 +154,7 @@ static void map_section(struct program_header *p, u64 elf_start)
 			paddr = new_page();
 		}
 		printf("Mapping %lx to %lx (%x)\n", vaddr, paddr, p->p_flags);
-		map_page(vaddr, paddr, p->p_flags);
+		map_page(vaddr, paddr, p->p_flags, is_kernel);
 		paddr += 4096;
 
 	}
@@ -163,12 +167,12 @@ static void map_bootloader(u32 size)
 	/* Map the pages before .bss as executable */
 	end = (u32)&_stack_start - 0x1000;
 	for(addr = 0x100000; addr < end; addr += 0x1000)
-		map_page(addr, addr, PF_X);
+		map_page(addr, addr, PF_X, 1);
 
 	/* Map the pages in .bss as writeable */
 	printf("Addr: %x Size: %x\n", addr, size);
 	for(addr; addr < end + size; addr += 0x1000)
-		map_page(addr, addr, PF_W);
+		map_page(addr, addr, PF_W, 1);
 }
 
 static void map_range(unsigned long start, unsigned long len)
@@ -177,7 +181,7 @@ static void map_range(unsigned long start, unsigned long len)
 
 	/* Displaced identity map each page */
 	for(page = start; page < start + len; page += 0x1000)
-		map_page(VIRT_TO_PHYS + page, page, PF_W);
+		map_page(VIRT_TO_PHYS + page, page, PF_W, 0);
 }
 
 static void memcpy(void *d, void *s, unsigned long n)
@@ -216,37 +220,57 @@ static void init_mem(struct multiboot *mb, unsigned long kernel_end)
 void __attribute__((noreturn)) main(struct multiboot *mb)
 {
 	int i;
-	u32 kernel_start, kernel_size, kernel_end;
-	struct elf_header *e;
+	u32 kernel_start, kernel_end;
+	struct elf_header *e, *ke;
 	struct program_header *p;
-	struct module *mod = mb->mods_addr;
+	struct module *mod = mb->mods_addr, *last_mod;
 
 	printf("Bootloader started\n");
 
-	kernel_start = mod->mod_start;
-	kernel_size  = mod->mod_end - mod->mod_start;
-	kernel_size  = ((kernel_size+4095)/4096)*4096;
-	kernel_end   = kernel_start + kernel_size;
+	if(mb->mods_count < 1)
+	{
+		printf("Fatal: Kernel not supplied as grub module.\n");
+		while(1);
+	}
 
-	printf("Kernel: %lx-%lx\n", kernel_start, kernel_end);
+	kernel_start = mod->mod_start;
+
+	last_mod = &mod[mb->mods_count-1];
+	kernel_end = ((last_mod->mod_end + 4095)/4096)*4096;
+
+	printf("Kernel: %x-%x\n", kernel_start, kernel_end);
 
 	/* Map RAM below 4G for the kernel to start with */
 	init_mem(mb, kernel_end);
 
 	printf("Memory initialized\n");
 
-	e = (struct elf_header *)kernel_start;
-	p = (struct program_header *)(u32)(e->e_phoff + kernel_start);
+	ke = (struct elf_header *)kernel_start;
+	p = (struct program_header *)(u32)(ke->e_phoff + kernel_start);
 
-	for(i = 0; i < e->e_phnum; i++)
-		map_section(&p[i], kernel_start);
+	for(i = 0; i < ke->e_phnum; i++)
+		map_section(&p[i], kernel_start, 1);
 
 	printf("Kernel mapped\n");
 
 	map_bootloader((u32)&_bootloader_size);
+	printf("Bootloader mapped\n");
+
+	while(mb->mods_count-- > 1)
+	{
+		printf("Mapping module\n");
+		mod++;
+		e = (struct elf_header *)mod->mod_start;
+		printf("e->e_phoff: %x\n", e->e_phoff);
+		p = (struct program_header *)(u32)(e->e_phoff + (u32)e);
+		printf("e: %x, p: %x\n", e, p);
+		for(i = 0; i < e->e_phnum; i++)
+			map_section(&p[i], (u32)e, 0);
+	}
+
 	printf("Going to long mode...\n");
 
 	mem.free = free_page;
 
-	go_long((u32)pml4, e->e_entry, (u32)&mem);
+	go_long((u32)pml4, ke->e_entry, (u32)&mem);
 }
