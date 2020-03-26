@@ -75,7 +75,7 @@ void gdt_install(void)
 	gdt_set_entry(&e[3], 0, 0xFFFFF, 0xAFFB); /* User code */
 	gdt_set_entry(&e[4], 0, 0xFFFFF, 0xAFF3); /* User data */
 	
-	tss.rsp0 = (u64)kernel_stack; 
+	tss.rsp0 = (u64)kernel_stack + sizeof(kernel_stack); 
 
 	gdt_set_tss_entry(&e[5], &tss); /* TSS */
 	printf("kernel stack: %lx\n", kernel_stack);
