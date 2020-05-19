@@ -13,6 +13,8 @@ enum PAGE_SIZE {
 void mem_init(void *);
 void mmap(u64 vaddr, u64 paddr, u64 len, u32 flags);
 u64  phys_alloc(enum PAGE_SIZE);
-u64  phys_to_virt(u64 paddr);
-
+void *phys_to_virt(uintptr_t paddr);
+uintptr_t virt_to_phys(void *vaddr);
+void *kalloc(void);
+void kfree(void *);
 #endif
