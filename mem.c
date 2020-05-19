@@ -32,9 +32,14 @@ struct node {
 static struct node *freelist[2];
 static u64 free_page;
 
-u64 phys_to_virt(u64 paddr)
+uintptr_t virt_to_phys(void *vaddr)
 {
-	return paddr+VIRT_TO_PHYS;
+	return (uintptr_t)vaddr - VIRT_TO_PHYS;
+}
+
+void *phys_to_virt(uintptr_t paddr)
+{
+	return (void *)(paddr + VIRT_TO_PHYS);
 }
 
 static u64 *page_table(unsigned long p3, unsigned long p2, unsigned long p1)
@@ -175,6 +180,21 @@ static void phys_fix_early_gap(void)
 
 	for(page = free_page; page < aligned; page += 4096)
 		phys_add_page(page, PAGE_4K);
+}
+
+void kfree(void *p)
+{
+	struct node *n = p;
+
+	n->next = freelist[PAGE_4K];
+
+	freelist[PAGE_4K] = (struct node *)virt_to_phys(n);
+}
+
+void *kalloc(void)
+{
+	void *p = phys_to_virt(phys_alloc(PAGE_4K));
+	return p;
 }
 
 u64 phys_alloc(enum PAGE_SIZE size)
