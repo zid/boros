@@ -5,6 +5,8 @@
 #include <pci.h>
 #include <acpi.h>
 #include <gdt.h>
+#include <syscall.h>
+#include <task.h>
 
 void kmain(void *mem)
 {
@@ -17,19 +19,24 @@ void kmain(void *mem)
 	int_install();
 	/* acpi_init(); - PCI-E not delivering interrupts yet */
 	pci_init();
+	syscall_install();
 
 	/* No infrastructure for this exists yet, hardcoded here */
 	/* Drop into usermode */
+	#define IA32_KERNEL_GS_BASE 0xC0000102
+	wrmsr(IA32_KERNEL_GS_BASE, (u64)task_get());
 	asm(
-		"mov eax, 0x23;" /* User data seg + cpl3 */
-		"mov ds, ax;"
-		"mov es, ax;"
+		"xor ax, ax;"
 		"mov fs, ax;"
 		"mov gs, ax;"
+		"mov eax, 0x18 | 3;" /* User data seg + cpl3 */
+		"mov ds, ax;"
+		"mov es, ax;"
+
 		"push rax;" 
-		"push 0;" /* Blank RSP for now, no user stack */ 
-		"pushf;"  /* Leak our flags I guess */
-		"mov eax, 0x1B;" /* User code seg + cpl3 */
+		"push 0;"
+		"push 0x7202;"  /* Rflags - Interrupt + CPL3 */
+		"mov eax, 0x20 | 3;" /* User code seg + cpl3 */
 		"push rax;"
 		"push 0x200000;"
 		"iretq;"
