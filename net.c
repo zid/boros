@@ -33,7 +33,7 @@ static void arp_send(unsigned char *dest_mac, unsigned char *source_mac,
 {
 	unsigned char *packet;
 
-	packet = phys_to_virt(e1000_get_buf());
+	packet = kalloc();
 
 	packet[ 0] = dest_mac[0];
 	packet[ 1] = dest_mac[1];
@@ -89,7 +89,8 @@ static void arp_send(unsigned char *dest_mac, unsigned char *source_mac,
 	packet[40] = dest_ip>>8;
 	packet[41] = dest_ip;
 
-	e1000_send(42);
+	e1000_send(virt_to_phys(packet), 42);
+	kfree(packet);
 }
 
 /* We are legion */
@@ -119,7 +120,7 @@ static void do_arp(unsigned char *buf, size_t len)
 	arp_send(source_mac, our_mac, source_ip, dest_ip);
 }
 
-u32 checksum_calc(const u8 *data, int len)
+u32 checksum_calc(const u8 *data, size_t len)
 {
 	u32 sum = 0, i;
 
@@ -139,7 +140,7 @@ u32 checksum_calc(const u8 *data, int len)
 
 static void icmp_reply(unsigned char *buf, size_t len)
 {
-	u8 *packet = phys_to_virt(e1000_get_buf());
+	u8 *packet = kalloc();
 	u32 sum;
 
 	/* Ignore Ethernet checksum bytes */
@@ -217,8 +218,9 @@ static void icmp_reply(unsigned char *buf, size_t len)
 
 	packet[36] = (sum>>8)&0xFF;
 	packet[37] = sum&0xFF;
-	
-	e1000_send(len);
+
+	e1000_send(virt_to_phys(packet), len);
+	kfree(packet);
 }
 
 static void do_ipv4(unsigned char *buf, size_t len)
@@ -236,7 +238,7 @@ static void do_ipv4(unsigned char *buf, size_t len)
 void net_give_packet(u64 buf, size_t len)
 {
 	u16 type;
-	u8 *b = (u8 *)phys_to_virt(buf);
+	u8 *b = phys_to_virt(buf);
 
 	if(len < 14)
 		return;
@@ -257,6 +259,11 @@ void net_give_packet(u64 buf, size_t len)
 			printf("Net: Unknown packet type %d\n", type);
 			while(1);
 	}
+}
+
+uintptr_t net_get_buf(void)
+{
+	return phys_alloc(PAGE_4K);
 }
 
 void net_set_mac(unsigned char *mac)

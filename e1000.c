@@ -6,6 +6,8 @@
 #include <net.h>
 #include <cpu.h>
 
+uintptr_t net_get_buf(void);
+
 #define RX_NUM 16
 #define TX_NUM 16
 
@@ -59,7 +61,8 @@ enum REGISTER {
 	RAH = 0x5404
 };
 
-static u64 buf;
+#define RX_CTRL_4K (3<<16 | 1<<25)
+
 static u64 base_addr;
 
 static void write_reg64(enum REGISTER reg, u64 value)
@@ -114,10 +117,12 @@ static void __attribute__((interrupt)) e1000_interrupt(void *p)
 	outb(0x20, 0x20);
 }
 
-static unsigned int tx_cur;
 
-void e1000_send(unsigned int len)
+void e1000_send(uintptr_t addr, size_t len)
 {
+	static unsigned int tx_cur;
+
+	tx_desc[tx_cur].addr = addr;
 	tx_desc[tx_cur].len = len;
 	tx_desc[tx_cur].cmd = 1 /* End of packet */ | 2 /* IFCS */;
 	tx_desc[tx_cur].status = 0;
@@ -128,14 +133,49 @@ void e1000_send(unsigned int len)
 		;
 }
 
-unsigned long e1000_get_buf(void)
+static void e1000_tx_init(void)
 {
-	unsigned long buf;
+	int i;
 
-	buf = tx_desc[tx_cur].addr;
-	tx_cur = tx_cur % TX_NUM;
+	tx_desc = kalloc();
 
-	return buf;
+	/* These get filled in by the hardware, just set status */
+	for(i = 0; i < TX_NUM; i++)
+	{
+		tx_desc[i].addr = 0;
+		tx_desc[i].status = 0;
+		tx_desc[i].cmd = 0;
+		tx_desc[i].status = 1;	/* For our use? */
+	}
+
+	write_reg64(TX_DESC, virt_to_phys(tx_desc));
+	write_reg32(TX_DESC_LEN, sizeof (struct tx_desc[TX_NUM]));
+	write_reg32(TX_DESC_HEAD, 0);
+	write_reg32(TX_DESC_TAIL, TX_NUM-1);
+
+	write_reg32(TX_CTRL, 1<<1 | 1<<3 | 0xF<<4 | 0x40<<12);
+}
+
+static void e1000_rx_init(void)
+{
+	int i;
+
+	rx_desc = kalloc();
+
+	/* Prime each RX descriptor with a 4k buffer */
+	for(i = 0; i < RX_NUM; i++)
+	{
+		rx_desc[i].addr = net_get_buf();
+		rx_desc[i].status = 0;
+	}
+
+	write_reg64(RX_DESC, virt_to_phys(rx_desc));
+	write_reg32(RX_DESC_LEN, sizeof (struct rx_desc[RX_NUM]));
+	write_reg32(RX_DESC_HEAD, 0);
+	write_reg32(RX_DESC_TAIL, RX_NUM-1);
+
+	/* Very promiscuous settings */
+	write_reg32(RX_CTRL, 1<<1 | 1<<2 | 1<<3 |1<<4| 1<<5 | 1<<15 | RX_CTRL_4K);
 }
 
 void e1000_init(struct device *d)
@@ -171,38 +211,9 @@ void e1000_init(struct device *d)
 	printf("[E1000] MAC: %02X%02X%02X%02X%02X%02X\n",
 		mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]
 	);
-	/* Grab at 2MB page and divide it into two 1MB regions for RX and TX */
-	buf = phys_alloc(PAGE_2M);
-	rx_desc = (struct rx_desc *)phys_to_virt(buf);
-	/* Prime each RX descriptor with a 16k region */
-	for(i = 0; i < RX_NUM; i++)
-	{
-		rx_desc[i].addr = buf+4096+(i*16384);
-		rx_desc[i].status = 0;
-	}
-	write_reg64(RX_DESC, buf);
-	write_reg32(RX_DESC_LEN, RX_NUM * sizeof(struct rx_desc));
-	write_reg32(RX_DESC_HEAD, 0);
-	write_reg32(RX_DESC_TAIL, 15);
 
-	/* Very promiscuous settings */
-	write_reg32(RX_CTRL, 1<<1 | 1<<2 | 1<<3 |1<<4| 1<<5 | 1<<15 | 3<<16 | 1<<25 );
-
-	tx_desc = (struct tx_desc *)(phys_to_virt(buf+1024*1024));
-	/* Prime each TX buffer with a 16kB region in the second 1MB region */
-	for(i = 0; i < TX_NUM; i++)
-	{
-		tx_desc[i].addr = buf + (1024*1024) + 4096 + (i*16384);
-		tx_desc[i].status = 0;
-		tx_desc[i].cmd = 0;
-		tx_desc[i].status = 1;	/* For our use? */
-	}
-
-	write_reg64(TX_DESC, buf + 1024*1024);
-	write_reg32(TX_DESC_LEN, sizeof (struct tx_desc[TX_NUM]));
-	write_reg32(TX_DESC_HEAD, 0);
-	write_reg32(TX_DESC_TAIL, 16);
-	write_reg32(TX_CTRL, 1<<1 | 1<<3 | 0xF<<4 | 0x40<<12);
+	e1000_rx_init();
+	e1000_tx_init();
 
 	/* Clear Multicast Table Array */
 	for(i = 0; i < 128; i++)
