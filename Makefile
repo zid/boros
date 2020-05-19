@@ -7,9 +7,10 @@
 	run-qemu-hd-efi
 
 CFLAGS = -W -Wall -nodefaultlibs \
-	-nostdlib -ffreestanding -O2 -ggdb -mgeneral-regs-only \
+	-nostdlib -ffreestanding -O3 -ggdb -mgeneral-regs-only \
 	-mcmodel=kernel -mno-red-zone -Iinclude/ -fno-pic \
-	-fno-stack-protector -masm=intel
+	-fno-stack-protector -masm=intel -flto -no-pie
+
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 ASMSRC = $(wildcard *.asm)
@@ -23,7 +24,7 @@ prep:
 	mkdir -p fs
 	mount -o loop=/dev/loop1 fs.bin fs/
 
-install: kernel.bin boot.bini user.bin
+install: kernel.bin boot.bin user.bin
 	cp boot/boot.bin fs/boot/
 	cp kernel.bin fs/boot/
 	cp user/user.bin fs/boot/
@@ -36,8 +37,8 @@ user.bin:
 	$(MAKE) -C user/
 
 kernel.bin: $(OBJ) $(ASMOBJ)
-	ld -Tlinker.ld $(OBJ) $(ASMOBJ) -o kernel.bin -z max-page-size=4096 \
-	-Map kernel.map
+	gcc -Wl,-Tlinker.ld $(OBJ) $(ASMOBJ) -o kernel.bin \
+	-Wl,-z,max-page-size=4096 -Wl,-Map,kernel.map $(CFLAGS)
 
 %.o : %.asm
 	yasm -felf64 $^ -o $@
