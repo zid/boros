@@ -1,5 +1,6 @@
 #include <types.h>
 #include <stdlib.h>
+#include <print.h>
 
 struct gdt_entry
 {
