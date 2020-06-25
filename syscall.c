@@ -2,6 +2,7 @@
 #include <types.h>
 #include <print.h>
 #include <task.h>
+#include <wrmsr.h>
 
 #define IA32_STAR  0xC0000081
 #define IA32_LSTAR 0xC0000082

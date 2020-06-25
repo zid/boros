@@ -2,6 +2,9 @@
 #include <print.h>
 #include <pci.h>
 #include <device.h>
+#include <cpu.h>
+#include <e1000.h>
+#include <virtio.h>
 
 #define PCI_CONFIG_ADDRESS 0xCF8
 #define PCI_DATA_ADDRESS 0xCFC
@@ -119,7 +122,7 @@ static void pcie_parse_device(u64 addr)
 	struct pcie_config *cfg;
 
 	/* Map device so we can talk to it */
-	mmap(phys_to_virt(addr), addr, 0x8000, PT_WR);
+	mmap((u64)phys_to_virt(addr), addr, 0x8000, PT_WR);
 	cfg = (struct pcie_config *)phys_to_virt(addr);
 
 	/* No device present */
