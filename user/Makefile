@@ -1,6 +1,6 @@
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
-CFLAGS = -fno-builtin -ffreestanding -O2 -no-pie -fno-pic -mno-sse
+CFLAGS = -fno-builtin -ffreestanding -O2 -no-pie -fno-pic -mno-sse -masm=intel
 
 %.o : %.c
 	$(CC) $^ -c -o $@ $(CFLAGS) 

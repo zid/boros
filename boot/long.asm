@@ -18,6 +18,7 @@ go_long:
 
 	mov ecx, 0xC0000080
 	rdmsr
+	or eax, 1               ;Sysenter enabled
 	or eax, 1 << 11         ;NX
 	or eax, 1 << 8          ;Long mode
 	wrmsr
