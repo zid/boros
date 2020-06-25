@@ -100,7 +100,8 @@ static void acpi_table_parse(u32 ptr)
 static void acpi_walk_rsdt(u32 rsdt_addr)
 {
 	struct rsdt *r;
-	int invalid, i;
+	int invalid;
+	size_t i;
 
 	r = (struct rsdt *)phys_to_virt(rsdt_addr);
 
@@ -168,7 +169,7 @@ void acpi_init(void)
 
 	printf("ACPI mapping...\n");
 
-	mmap(phys_to_virt(0xE0000), 0xE0000, 128*1024, PT_WR | PT_PRESENT);
+	mmap((u64)phys_to_virt(0xE0000), 0xE0000, 128*1024, PT_WR | PT_PRESENT);
 
 	p = (void *)phys_to_virt(0xE0000);
 
