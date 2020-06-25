@@ -7,6 +7,7 @@
 #include <gdt.h>
 #include <syscall.h>
 #include <task.h>
+#include <wrmsr.h>
 
 void kmain(void *mem)
 {
