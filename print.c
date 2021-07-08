@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include "print.h"
 #include "stdlib.h"
+#include "tty.h"
 
 #define BUF_SIZ 64
 
@@ -41,25 +42,7 @@ static void newline(void)
 
 static void putchar(unsigned char c)
 {
-	if(c == '\n')
-		return newline();
-	if(c == '\t')
-	{
-		putchar(' ');
-		putchar(' ');
-		putchar(' ');
-		putchar(' ');
-		return;
-	}
-
-	if(vmem >= (unsigned short *)(0xB8000 + (80 * 25 * 2)))
-	{
-		vmem -= 80; /* Short *, not an offset */
-		memmove((void *)0xB8000, (void *)0xB8000 + 160, 80 * 24 * 2);
-		 memset((void *)0xB8000+80*24*2, 0, 160);
-	}
-
-	*vmem++ = 0xF00 | c;
+	tty_putchar(c);
 }
 
 static void put_number(unsigned long n, int islong, int base, char pad_char, int width)
@@ -91,8 +74,7 @@ static void put_number(unsigned long n, int islong, int base, char pad_char, int
 
 static void puts(const char *str)
 {
-	while(*str)
-		putchar(*str++);
+	tty_write_str(str);
 }
 
 static void vprint(const char *fmt, va_list ap)

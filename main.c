@@ -18,8 +18,8 @@ void kmain(void *mem)
 
 	gdt_install();
 	int_install();
-	/* acpi_init(); - PCI-E not delivering interrupts yet */
-	pci_init();
+	acpi_init();
+	//pci_init();
 	syscall_install();
 
 	/* No infrastructure for this exists yet, hardcoded here */

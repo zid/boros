@@ -3,8 +3,10 @@
 #include <pci.h>
 #include <device.h>
 #include <cpu.h>
+
 #include <e1000.h>
 #include <virtio.h>
+#include <vbe.h>
 
 #define PCI_CONFIG_ADDRESS 0xCF8
 #define PCI_DATA_ADDRESS 0xCFC
@@ -68,6 +70,9 @@ static void pci_dump(struct device d)
 
 	if(vendor_id == 0x1af4 && device_id == 0x1000)
 		virtio_init(&d);
+
+	if(vendor_id == 0x1234 && device_id == 0x1111)
+		vbe_init(&d);
 }
 
 struct pcie_config
@@ -115,6 +120,8 @@ static void pcie_handle_device(struct pcie_config *cfg)
 		virtio_init(&d);
 	if(cfg->vendor_id == 0x8086 && cfg->device_id == 0x100E)
 		e1000_init(&d);
+	if(cfg->vendor_id == 0x1234 && cfg->device_id == 0x1111)
+		vbe_init(&d);
 }
 
 static void pcie_parse_device(u64 addr)
