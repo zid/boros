@@ -20,8 +20,9 @@ static void __attribute((noinline)) syscall_c(void)
 static void __attribute__((naked)) syscall_handler(void)
 {
 	asm volatile ("swapgs");
+	asm volatile ("mov [gs:8], rsp");
 	asm volatile ("mov rsp, [gs:0]");
-	asm volatile ("sti");
+	asm volatile ("push rbx");
 	asm volatile ("push r11");
 	asm volatile ("push rcx");
 
@@ -29,20 +30,21 @@ static void __attribute__((naked)) syscall_handler(void)
 
 	asm volatile ("pop rcx");
 	asm volatile ("pop r11");
-	asm volatile ("cli"); /* swapgs with interrupts enabled sounds bad */
+	asm volatile ("pop rbx");
+	asm volatile ("mov rsp, [gs:8]");
 	asm volatile ("swapgs");
 	asm volatile ("sysretq");
 }
 
 void syscall_install(void)
 {
-	/* 
+	/*
 	 * Disable Trap and Interrupt flags during syscall entry
 	 * otherwise an IRQ might be taken without a valid stack
 	 * pointer loaded into rsp.
 	 */
 	wrmsr(IA32_FMASK, 0x300);
-	
+
 	/* Kernel and user CS selectors stored here */
 	wrmsr(IA32_STAR,  0x8UL << 32 | 0x10UL << 48);
 
