@@ -54,7 +54,7 @@ static void gdt_set_tss_entry(struct gdt_entry *e, struct tss *tss)
 {
 	u64 tssptr = (u64)tss;
 
-	e[0].base_low = tssptr & 0xFFFF;
+	e[0].base_low = tssptr & 0xFFFFFF;
 	e[0].limit_low = sizeof (*tss) - 1;
 	e[0].flags_low = 0x89;
 	e[0].limit_high = 0;
@@ -75,10 +75,10 @@ void gdt_install(void)
 	gdt_set_entry(&e[2], 0, 0xFFFFF, 0xAF93); /* Kernel data */
 	gdt_set_entry(&e[3], 0, 0xFFFFF, 0xAFF3); /* User data */
 	gdt_set_entry(&e[4], 0, 0xFFFFF, 0xAFFB); /* User code */
-	
-	tss.rsp0 = (u64)kernel_stack + sizeof(kernel_stack); 
+
+	tss.rsp0 = (u64)kernel_stack + sizeof(kernel_stack);
 
 	gdt_set_tss_entry(&e[5], &tss); /* TSS */
-	printf("kernel stack: %lx\n", kernel_stack);
+	printf("kernel stack: %lx\n", kernel_stack + sizeof(kernel_stack));
 	gdt_load(&gdt);
 }
