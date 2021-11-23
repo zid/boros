@@ -4,6 +4,7 @@
 
 #define PT_PRESENT 1
 #define PT_WR      2
+#define PT_USER    4
 
 enum PAGE_SIZE {
 	PAGE_2M,
