@@ -8,7 +8,7 @@ CFLAGS = -fno-builtin -ffreestanding -O2 -no-pie -fno-pic -mno-sse
 	$(CC) $^ -c -o $@ $(CFLAGS) -m32
 
 %.o : %.asm
-	yasm -felf32 $^ -o $@
+	nasm -felf32 $^ -o $@
 
 boot.bin: $(ASMOBJ) $(OBJ)
 	ld $(OBJ) $(ASMOBJ) -melf_i386 -Tlinker.ld -o boot.bin

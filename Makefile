@@ -41,7 +41,7 @@ kernel.bin: $(OBJ) $(ASMOBJ)
 	-Wl,-z,max-page-size=4096 -Wl,-Map,kernel.map $(CFLAGS)
 
 %.o : %.asm
-	yasm -felf64 $^ -o $@
+	nasm -felf64 $^ -o $@
 
 %.o : %.c
 	$(CC) $^ -c -o $@ $(CFLAGS)
