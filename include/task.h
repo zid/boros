@@ -4,8 +4,9 @@
 
 struct task
 {
-	u64 stack;
+	u64 kernel_stack;
+	u64 user_stack;
 };
 
-struct task *task_get(void);
+void task_init(void);
 #endif
