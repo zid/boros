@@ -38,12 +38,53 @@ struct mcfg
 	} m[];
 } __attribute((packed));
 
+struct madt
+{
+	struct sdt_header sdt;
+
+	u32 apic_addr;
+	u32 flags;
+} __attribute((packed));
+
 struct rsdt
 {
 	struct sdt_header sdt;
 	u32 ptrs[];
 };
 
+
+/*
+ * SEABIOS at least does not align these tables, let the compiler figure out
+ * if unaligned reads are allowed on this platform.
+ */
+
+static u32 u32_at(unsigned char *p)
+{
+	u64 v;
+
+	v = 0<<8 | p[3];
+	v = v<<8 | p[2];
+	v = v<<8 | p[1];
+	v = v<<8 | p[0];
+
+	return v;
+}
+
+static u64 u64_at(unsigned char *p)
+{
+	u64 v;
+
+	v = 0<<8 | p[7];
+	v = v<<8 | p[6];
+	v = v<<8 | p[5];
+	v = v<<8 | p[4];
+	v = v<<8 | p[3];
+	v = v<<8 | p[2];
+	v = v<<8 | p[1];
+	v = v<<8 | p[0];
+
+	return v;
+}
 static int acpi_checksum_valid(void *m, u8 checksum, size_t len)
 {
 	u8 sum = 0;
@@ -62,8 +103,11 @@ static void acpi_parse_mcfg(struct sdt_header *sdt)
 	struct mcfg *m = (struct mcfg *)sdt;
 	size_t i, max;
 
-	if(acpi_checksum_valid(m, m->sdt.checksum, m->sdt.len))
-		printf("MCFG checksum invalid\n");
+	if(acpi_checksum_valid(m, m->sdt.checksum, m->sdt.len) != 0)
+	{
+		printf("\tMCFG checksum invalid\n");
+		return;
+	}
 
 	/* MCFG header is 44 bytes, each entry is 16 */
 	max = (m->sdt.len - 44) / 16;
@@ -75,6 +119,53 @@ static void acpi_parse_mcfg(struct sdt_header *sdt)
 		printf("\tEnd: %x\n", m->m[0].end);
 
 		pcie_init(m->m[0].base);
+	}
+}
+
+static void acpi_parse_madt(struct sdt_header *sdt)
+{
+	struct madt *m = (struct madt *)sdt;
+	unsigned char *p;
+	size_t len;
+
+	if(acpi_checksum_valid(m, m->sdt.checksum, m->sdt.len) != 0)
+	{
+		printf("\tMADT checksum invalid\n");
+		return;
+	}
+
+	/* Length of data appended to MADT */
+	len = (m->sdt.len - sizeof (struct madt));
+	p = (unsigned char *)(m + 1);
+
+	while(1)
+	{
+		int record_type, record_len;
+
+		record_type = p[0];
+		record_len  = p[1];
+
+		switch(record_type)
+		{
+			case 0: /* LAPIC */
+			printf("\tAPIC Processor ID: 0x%02X\n", p[2]);
+			printf("\tAPIC ID: 0x%02X\n", p[3]);
+			break;
+			case 1: /* IOAPIC */
+			printf("\tIOAPIC ID: 0x%02X\n", p[2]);
+			printf("\tIOAPIC Base: 0x%08X\n", u32_at(p+4));
+			break;
+			case 2: /* IOAPIC Interrupt Source */
+			printf("\tIOAPIC Interrupt Source\n");
+			break;
+			case 5: /* LAPIC Override */
+			printf("\tLAPIC 64-bit Base: 0x%016lX\n", u64_at(p+4));
+			break;
+		}
+
+		p += record_len;
+		if(p >= (unsigned char *)(m + 1) + len)
+			break;
 	}
 }
 
@@ -91,10 +182,13 @@ static void acpi_table_parse(u32 ptr)
 		sdt->sig[3]
 	);
 
-	if(memcmp(sdt->sig, "MCFG", 4) != 0)
-		return;
+	if(memcmp(sdt->sig, "MCFG", 4) == 0)
+		acpi_parse_mcfg(sdt);
 
-	acpi_parse_mcfg(sdt);
+	if(memcmp(sdt->sig, "APIC", 4) == 0)
+		acpi_parse_madt(sdt);
+
+	return;
 }
 
 static void acpi_walk_rsdt(u32 rsdt_addr)
