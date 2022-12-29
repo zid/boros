@@ -13,10 +13,10 @@ PHDRS
 SECTIONS
 {
 	. = VIRT;
-	.text   : ALIGN(0x1000) { * (.text*);   } :text
+	.text   : ALIGN(0x1000) { start.o (.text); * (.text*);   } :text
 	.rodata : ALIGN(0x1000) { * (.rodata*); } :text
 	.data   : ALIGN(0x1000) { * (.data);    } :data
 	.bss    : ALIGN(0x1000) { * (.bss);     } :data
 
-	/DISCARD/ : { * (.*); }
+/*	/DISCARD/ : { * (.*); } */
 }

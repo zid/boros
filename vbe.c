@@ -54,7 +54,7 @@ static void draw_line(int x, int y, const unsigned short *line)
 			return;
 
 		glyph_row = charmap[c]*16;
-		
+
 		for(j = 0; j < 16; j++)
 		{
 			glyph_byte = unifont_bitmap[glyph_row + j];
@@ -77,7 +77,7 @@ static void draw_line(int x, int y, const unsigned short *line)
 				PSET(y+j, x+i, colour);
 			}
 		}
-		
+
 		x += 8;
 	}
 }
@@ -97,6 +97,9 @@ void vbe_init(struct device *d)
 
 	mmap(base, base_bar, 16*1024*1024, PT_WR | PT_PRESENT);
 	mmap(mmio, mmio_bar, 0x1000, PT_WR | PT_PRESENT);
+
+	/* FIXME: Map framebuffer to usermode */
+	mmap(0x80000000, base_bar, 16*1024*1024, PT_WR | PT_USER | PT_PRESENT);
 
 	vbe_setmode(1024, 768);
 	memcpy((void *)base, ayame, 1024*768*4);
